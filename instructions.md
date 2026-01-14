@@ -1,0 +1,63 @@
+# Instructions: Discord Chat Analysis & Report Generator (2025)
+
+## Context
+Analysis of the output `.txt` files exported via DiscordChatExporter.
+- **Format:** `[DD-Mon-YY HH:MM AM/PM] Username: Message`
+- **Goal:** Create a professional, interactive "Year in Review 2025" HTML report.
+- **Hardware:** Optimized for Mac M4 Pro.
+
+## Tech Stack
+- **Data:** Python 3, Pandas
+- **Visualization:** Plotly, WordCloud
+- **AI:** `google-generativeai` (Gemini 1.5 Flash/Pro)
+- **Templating:** Jinja2 / Inline HTML/CSS
+
+---
+
+## 🚀 ROADMAP ESECUTIVA (Backlog dei Ticket)
+
+### SPRINT 1: Data Engine & Parsing
+- **Ticket 1.1:** Implement regex parsing to convert the `.txt` into a Pandas DataFrame. Columns: `timestamp` (datetime), `user`, `message`.
+- **Ticket 1.2:** Data Cleaning: remove system messages, bot commands (e.g., prefix `!`, `/`), and handle multi-line messages.
+- **Ticket 1.3:** Integrity Check: print summary stats (total messages, date range) to verify the parsing.
+
+### SPRINT 2: Statistics & Visuals (Local)
+- **Ticket 2.1:** **Top Contributors:** Bar chart of the top 10 most active users.
+- **Ticket 2.2:** **Activity Heatmap:** Hourly activity distribution (Day of Week vs. Hour of Day).
+- **Ticket 2.3:** **Word Cloud:** Generate a WordCloud image using the most frequent terms (exclude common Italian/English stopwords). Save as base64 to embed in HTML.
+- **Ticket 2.4:** **Timeline:** Line chart showing message volume per month in 2025.
+
+### SPRINT 3: Gemini API Integration (Intelligence)
+- [x] **Ticket 3.1:** API Setup: Securely load `GEMINI_API_KEY`. Implement `summarize_text()` with exponential backoff for Rate Limits.
+- [x] **Ticket 3.2:** **Monthly Analysis:** Chunk messages by month. Send to Gemini to extract:
+    - A 3-bullet summary of main topics.
+    - Dominant sentiment (e.g., "Excited", "Productive", "Chill").
+    - "Funniest" or "Most Impactful" quote.
+- **Ticket 3.3:** **Executive Summary:** Pass monthly summaries to Gemini for a final high-level "Yearly Overview" (or Quarterly in case the quarter parameter is passed).
+
+### SPRINT 3.5: Rework & Enhancements
+- [x] **Ticket 3.4:** **Refactoring & Localization:**
+    - **Language:** AI output must be in Italian by default, but parameterizable via CLI (e.g., `--lang it`).
+    - **Prompts:** Move hardcoded AI prompts into a separate file (e.g., `src/analysis/templates/system_prompt.txt`).
+    - **Quotes Update:** Rework Monthly Analysis to extract **1 Funniest** AND **1 Most Impactful** quote.
+- [x] **Ticket 3.5:** **New Stat - The Spammer:** Identify and visualize users who share the most links (articles/videos).
+- **Ticket 3.6:** **Quarter Selection:** Add a `--quarter` (e.g., `Q1`) argument to analyze specific quarters only. If omitted, full year (default) or last year is used.
+
+### SPRINT 4: UI & Report Export
+- [x] **Ticket 4.1:** **Modern UI:** Create a Dark Mode HTML template with responsive CSS.
+    - **Report Layout Spec:** **Single Column (Stacked) Layout** for linear reading.
+        - **Header:** Title + Date.
+        - **Block 1:** Executive Summary.
+        - **Block 2:** Top Contributors & Spammers.
+        - **Block 3:** Activity Timeline & Heatmap.
+        - **Block 4:** Word Cloud & Funniest/Impactful Quotes.
+- **Ticket 4.2:** **Integration:** Embed Plotly charts (JSON/div) and the WordCloud image into the template.
+- **Ticket 4.3:** **Final Export:** Compile everything into `Report_Discord_2025.html`.
+
+---
+
+## 🛠 CODING GUIDELINES FOR COPILOT
+1. **Efficiency:** Use Pandas vectorization for stats. Avoid large loops for the 2025 dataset.
+2. **Context Management:** For Gemini, don't send raw logs if they exceed the context window. Use the "Monthly Chunking" strategy.
+3. **WordCloud Cleaning:** Ensure the `WordCloud` library filters out "https", "Discord", "reazioni", and common conjunctions.
+4. **Modularity:** Keep functions atomic: `process_data()`, `get_stats()`, `get_ai_insights()`, `render_report()`.

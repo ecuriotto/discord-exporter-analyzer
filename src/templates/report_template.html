@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ channel_name }} - Report Annuale 2025</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Plotly.js -->
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <style>
+        body {
+            background-color: #1e1e2e; /* Dark theme background */
+            color: #cdd6f4;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .card {
+            background-color: #313244;
+            border-radius: 1rem;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        .header-gradient {
+            background: linear-gradient(to right, #89b4fa, #cba6f7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+    </style>
+</head>
+<body class="p-6 max-w-7xl mx-auto">
+    
+    <!-- Title Section -->
+    <header class="text-center mb-12">
+        <h1 class="text-5xl font-bold mb-4 header-gradient">{{ channel_name }}</h1>
+        <p class="text-xl text-gray-400">Report Annuale 2025</p>
+        <p class="text-sm text-gray-500 mt-2">Generato il: {{ generation_date }}</p>
+    </header>
+
+    <!-- Main Stack Layout -->
+    <div class="flex flex-col gap-8">
+        
+        <!-- === AI Insights Section === -->
+        {% if quarterly_insights %}
+        <section id="ai-insights" class="card space-y-6">
+            <h2 class="text-3xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600">
+                ✨ AI: I Momenti Salienti
+            </h2>
+            
+            {% for quarter, data in quarterly_insights.items() %}
+            <div class="border-b border-gray-700 pb-8 last:border-0 last:pb-0">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-2xl font-bold text-white">{{ quarter }}</h3>
+                    <span class="bg-indigo-900 text-indigo-300 text-sm font-medium mr-2 px-3 py-1 rounded border border-indigo-700">
+                        {{ data.sentiment }}
+                    </span>
+                </div>
+                
+                <!-- Quotes Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                    <!-- Funniest Quote -->
+                    <div class="bg-gray-800/50 p-4 rounded-xl border border-gray-700 relative overflow-hidden group hover:border-green-500/50 transition-colors">
+                        <div class="absolute top-0 right-0 p-2 opacity-10 text-6xl group-hover:opacity-20 transition-opacity">😂</div>
+                        <p class="text-xs text-green-400 uppercase font-bold mb-2 tracking-wider">Il Simpaticone</p>
+                        <blockquote class="italic text-gray-300 relative z-10">"{{ data.funniest_quote.text }}"</blockquote>
+                        <p class="text-right text-sm text-gray-500 mt-2 font-mono">@{{ data.funniest_quote.author }}</p>
+                    </div>
+                    
+                    <!-- Impactful Quote -->
+                    <div class="bg-gray-800/50 p-4 rounded-xl border border-gray-700 relative overflow-hidden group hover:border-red-500/50 transition-colors">
+                        <div class="absolute top-0 right-0 p-2 opacity-10 text-6xl group-hover:opacity-20 transition-opacity">🔥</div>
+                        <p class="text-xs text-red-400 uppercase font-bold mb-2 tracking-wider">La Perla</p>
+                        <blockquote class="italic text-gray-300 relative z-10">"{{ data.impactful_quote.text }}"</blockquote>
+                        <p class="text-right text-sm text-gray-500 mt-2 font-mono">@{{ data.impactful_quote.author }}</p>
+                    </div>
+                </div>
+
+                <ul class="space-y-2 text-gray-300 ml-4 border-l-2 border-gray-700 pl-4">
+                    {% for point in data.summary %}
+                    <li class="pl-1">{{ point }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endfor %}
+        </section>
+        {% endif %}
+
+        <!-- === Activity Group === -->
+        
+        <!-- Timeline -->
+        <section id="timeline" class="card">
+            <h2 class="text-2xl font-semibold mb-6 text-blue-400">📈 Cronologia Attività</h2>
+            <div class="w-full flex justify-center">
+                {{ timeline_chart | safe }}
+            </div>
+            <p class="mt-4 text-gray-400 text-sm text-center">
+                Volume giornaliero di messaggi nel tempo.
+            </p>
+        </section>
+
+        <!-- Activity Heatmap -->
+        <section id="heatmap" class="card">
+            <h2 class="text-2xl font-semibold mb-6 text-green-400">🔥 Mappa di Calore</h2>
+            <div class="w-full flex justify-center">
+                {{ activity_heatmap | safe }}
+            </div>
+            <p class="mt-4 text-gray-400 text-sm text-center">
+                Quando è più attiva la community? (Ora vs Giorno)
+            </p>
+        </section>
+
+        <!-- Word Cloud -->
+        <section id="wordcloud" class="card">
+            <h2 class="text-2xl font-semibold mb-6 text-purple-400">☁️ Nuvola di Parole (Word Cloud)</h2>
+            <div class="w-full flex justify-center">
+                {{ wordcloud_img | safe }}
+            </div>
+            <p class="mt-4 text-gray-400 text-sm text-center">
+                Parole più frequenti nella chat (escluse stopword comuni).
+            </p>
+        </section>
+
+
+        <!-- === User Group === -->
+
+        <!-- Top Contributors -->
+        <section id="contributors" class="card">
+            <h2 class="text-2xl font-semibold mb-6 text-blue-400">🏆 Top Contributors</h2>
+            <div class="w-full flex justify-center">
+                {{ top_contributors_chart | safe }}
+            </div>
+            <p class="mt-4 text-gray-400 text-sm text-center">
+                I 10 membri più attivi della community.
+            </p>
+        </section>
+        <!-- Spammers -->
+        <section id="spammers" class="card">
+            <h2 class="text-2xl font-semibold mb-6 text-red-500">🔗 Lo Spammer di Link</h2>
+            <div class="w-full h-96">
+                {{ spammer_chart | safe }}
+            </div>
+            <p class="mt-4 text-gray-400 text-sm text-center">
+                Utenti che hanno condiviso più link esterni (articoli, video, ecc).
+            </p>
+        </section>
+        <!-- Night Owls -->
+        <section id="nightowls" class="card">
+            <h2 class="text-xl font-semibold mb-4 text-yellow-400">🦉 Gufi vs Allodole</h2>
+            <div class="w-full flex justify-center">
+                {{ night_owls_chart | safe }}
+            </div>
+            <p class="mt-4 text-gray-400 text-sm text-center">
+                Quando dormono i top contributor?
+            </p>
+        </section>
+
+        <!-- Yap-o-meter -->
+        <section id="yapometer" class="card">
+            <h2 class="text-xl font-semibold mb-4 text-pink-400">🗣️ Il Chiacchierometro</h2>
+            <div class="w-full flex justify-center">
+                {{ yap_chart | safe }}
+            </div>
+            <p class="mt-4 text-gray-400 text-sm text-center">
+                Chi scrive saggi e chi risponde con "k"? (Media caratteri)
+            </p>
+        </section>
+
+    </div>
+
+    <!-- Placeholder for Future Sprints -->
+    <!-- 
+    <section id="sentiment" class="card"> ... </section>
+    -->
+
+    <footer class="text-center text-gray-500 text-sm mt-12 py-6 border-t border-gray-700">
+        <p>Generato da Discord Chat Analysis Engine</p>
+    </footer>
+
+</body>
+</html>

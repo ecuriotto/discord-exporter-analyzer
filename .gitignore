@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+
+# Mac
+.DS_Store
+
+# Secrets (IMPORTANT)
+discord_token.txt
+gemini_token.txt
+token.txt
+
+# Data & Output
+input/
+output/
+
+# External Tools
+DiscordChatExporterCli/

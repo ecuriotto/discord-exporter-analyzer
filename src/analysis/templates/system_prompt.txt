@@ -1,0 +1,16 @@
+Analyze these Discord chat logs for {period_label} of {year}.
+Output Language: {language} (Ensure all summaries and sentiments are in this language).
+
+Return ONLY valid JSON in this format:
+{
+    "summary": ["bullet 1", "bullet 2", "bullet 3"],
+    "sentiment": "One Word Label",
+    "funniest_quote": {
+        "text": "Quote text",
+        "author": "Username"
+    },
+    "impactful_quote": {
+        "text": "Quote text",
+        "author": "Username"
+    }
+}
