@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; background: #202225; color: #dcddde; }
+        h1 { color: #5865F2; padding-bottom: 10px; display: flex; align-items: center; gap: 10px; }
+        h2 { color: #fff; margin-top: 0; font-size: 1.2rem; border-bottom: 1px solid #40444b; padding-bottom: 10px; margin-bottom: 15px; }
+        
+        /* Layout & Tabs */
+        .container { max-width: 1200px; margin: 0 auto; }
+        .tabs { display: flex; border-bottom: 2px solid #2f3136; margin-bottom: 20px; }
+        .tab-btn {
+            background: none; border: none; padding: 10px 20px; color: #b9bbbe; 
+            font-size: 1rem; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px;
+            transition: all 0.2s;
+        }
+        .tab-btn:hover { color: #dcddde; }
+        .tab-btn.active { color: #5865F2; border-bottom: 2px solid #5865F2; font-weight: bold; }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; animation: fadeIn 0.3s ease-in-out; }
+        
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .card { background: #2f3136; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        
+        /* Forms & Inputs */
+        label { display: block; margin-bottom: 8px; font-weight: bold; color: #b9bbbe; }
+        select, input[type="text"] {
+            width: 100%; padding: 10px; border-radius: 4px; border: 1px solid #202225;
+            background: #40444b; color: #dcddde; font-size: 1rem; margin-bottom: 15px;
+        }
+        select:focus, input:focus { outline: none; border-color: #5865F2; }
+
+        .btn {
+            background: #5865F2; color: white; border: none; padding: 10px 20px;
+            border-radius: 4px; font-size: 1rem; cursor: pointer; transition: background 0.2s;
+            display: inline-flex; align-items: center; gap: 8px;
+        }
+        .btn:hover { background: #4752c4; }
+        .btn:disabled { background: #40444b; cursor: not-allowed; opacity: 0.7; }
+        .btn-secondary { background: #4f545c; }
+        .btn-secondary:hover { background: #5d6269; }
+
+        /* Lists */
+        .list-group { list-style: none; padding: 0; margin: 0; max-height: 400px; overflow-y: auto; }
+        /* Scrollbar styling */
+        .list-group::-webkit-scrollbar { width: 8px; }
+        .list-group::-webkit-scrollbar-track { background: #2f3136; }
+        .list-group::-webkit-scrollbar-thumb { background: #202225; border-radius: 4px; }
+
+        .list-item { 
+            padding: 12px; 
+            border-bottom: 1px solid #40444b; 
+            display: flex; justify-content: space-between; align-items: center; 
+        }
+        .list-item:last-child { border-bottom: none; }
+        .list-item:hover { background: #36393f; }
+        
+        a.file-link { color: #00b0f4; text-decoration: none; font-weight: bold; }
+        a.file-link:hover { text-decoration: underline; }
+        
+        .meta { font-size: 0.8em; color: #b9bbbe; }
+        .badge { 
+            background: #5865F2; color: white; padding: 2px 6px; border-radius: 4px; 
+            font-size: 0.75em; margin-left: 10px; display: inline-block;
+        }
+        .badge.outline { background: transparent; border: 1px solid #5865F2; color: #5865F2; }
+
+        /* Toaster */
+        #toaster-container {
+            position: fixed; bottom: 20px; right: 20px; z-index: 1000;
+            display: flex; flex-direction: column; gap: 10px;
+        }
+        .toast {
+            background: #3ba55c; color: white; padding: 12px 20px; border-radius: 4px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3); display: flex; align-items: center; gap: 10px;
+            min-width: 250px; animation: slideIn 0.3s ease-out;
+        }
+        .toast.error { background: #ed4245; }
+        .toast.info { background: #5865F2; }
+        .toast-close { margin-left: auto; cursor: pointer; opacity: 0.8; }
+        .toast-close:hover { opacity: 1; }
+
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+        /* Error Box */
+        .error-box {
+            background: rgba(237, 66, 69, 0.1); border: 1px solid #ed4245; color: #ed4245;
+            padding: 15px; border-radius: 4px; margin-bottom: 20px; display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="#5865F2"><path d="M19.27 5.33C17.94 4.71 16.5 4.26 15 4a.09.09 0 0 0-.07.03c-.18.33-.39.76-.53 1.09a16.09 16.09 0 0 0-4.8 0c-.14-.34-.35-.76-.54-1.09.01-.02-.01-.04-.07-.03-1.5.26-2.93.71-4.27 1.33-.01 0-.02.01-.03.02-2.72 4.07-3.47 8.03-3.1 11.95 0 .02.01.04.03.05 1.8 1.32 3.53 2.12 5.2 2.65.03.01.06 0 .07-.03.4-.54.76-1.12 1.08-1.72.02-.04 0-.09-.04-.1a10.95 10.95 0 0 1-1.68-.8c-.04-.02-.04-.08 0-.1.12-.08.24-.17.35-.25.02-.01.04-.01.06 0 3.41 1.56 7.09 1.56 10.5 0 .02-.01.04-.01.06 0 .11.09.23.17.35.26.04.02.04.08 0 .1a11.1 11.1 0 0 1-1.68.8c-.04.01-.06.06-.04.1.32.6.68 1.18 1.08 1.72.01.03.04.04.07.03 1.67-.53 3.4-1.33 5.2-2.65.02-.01.03-.03.03-.05.44-4.53-.73-9.22-3.55-12.75-.01-.01-.02-.02-.03-.02Z"/></svg>
+            Discord Analytics Dashboard
+        </h1>
+
+        <!-- Navigation Tabs -->
+        <div class="tabs">
+            <button class="tab-btn active" onclick="openTab('extraction')">Extraction</button>
+            <button class="tab-btn" onclick="openTab('analysis')">Analysis</button>
+        </div>
+
+        <!-- Extraction Tab -->
+        <div id="extraction" class="tab-content active">
+            <div id="extraction-error" class="error-box"></div>
+
+            <div class="grid">
+                <!-- New Extraction Card -->
+                <div class="card">
+                    <h2>📥 Run New Extraction</h2>
+                    <p class="meta">Select a channel to extract messages from the Discord server.</p>
+                    <br>
+                    
+                    <form id="extract-form" onsubmit="handleExtract(event)">
+                        <label for="guild-select">Select Server / Category</label>
+                        <select id="guild-select" onchange="loadChannels(this.value)" required>
+                            <option value="" disabled selected>Loading servers...</option>
+                        </select>
+
+                        <label for="channel-select" style="margin-top: 15px;">Select Channel</label>
+                        <select id="channel-select" disabled required>
+                            <option value="" disabled selected>Select a server first...</option>
+                        </select>
+
+                        <div style="margin-top: 20px;">
+                            <button type="submit" id="extract-btn" class="btn">
+                                <span>Start Extraction</span>
+                            </button>
+                        </div>
+                    </form>
+                    <br>
+                    <div id="extract-log" style="display:none; background: #202225; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 0.9em; border-left: 3px solid #5865F2;">
+                        <span style="color: #b9bbbe;">> Ready...</span>
+                    </div>
+                </div>
+
+                <!-- Extracted Files List -->
+                <div class="card">
+                    <h2>📂 Extracted Channels (Read-Only)</h2>
+                    <p class="meta">Raw data files ready for processing.</p>
+                    <br>
+                    {% if channels %}
+                    <ul class="list-group">
+                        {% for channel in channels %}
+                        <li class="list-item">
+                            <div>
+                                <span style="color: #3ba55c;">📄</span> 
+                                <span class="file-link" style="color: #dcddde;">{{ channel.name }}</span>
+                            </div>
+                            <div style="text-align: right;">
+                                <span class="meta">{{ channel.date }}</span>
+                                <span class="badge outline">{{ channel.size }}</span>
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p style="color: #72767d; font-style: italic;">No extracted channels found.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Analysis Tab -->
+        <div id="analysis" class="tab-content">
+            <div id="analysis-error" class="error-box"></div>
+
+             <div class="grid">
+                <!-- Analysis Configuration Card -->
+                <div class="card">
+                    <h2>📊 Configure Analysis</h2>
+                    <p class="meta">Generate an AI-powered insights report from extracted chat logs.</p>
+                    <br>
+                    
+                    <form id="analyze-form" onsubmit="handleAnalysis(event)">
+                        <label for="analysis-file-select">Select Data Source</label>
+                        <select id="analysis-file-select" required>
+                            <option value="" disabled selected>Select an extracted file...</option>
+                            {% for channel in channels %}
+                            <option value="{{ channel.path }}">{{ channel.display_name }} ({{ channel.size }})</option>
+                            {% endfor %}
+                        </select>
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                            <div>
+                                <label for="analysis-year">Year</label>
+                                <input type="text" id="analysis-year" value="2025" required>
+                            </div>
+                            <div>
+                                <label for="analysis-quarter">Quarter</label>
+                                <select id="analysis-quarter">
+                                    <option value="">Full Year</option>
+                                    <option value="Q1">Q1 (Jan-Mar)</option>
+                                    <option value="Q2">Q2 (Apr-Jun)</option>
+                                    <option value="Q3">Q3 (Jul-Sep)</option>
+                                    <option value="Q4" selected>Q4 (Oct-Dec)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <label for="analysis-lang">Language</label>
+                        <select id="analysis-lang">
+                            <option value="it" selected>Italian</option>
+                            <option value="en">English</option>
+                        </select>
+
+                        <div style="margin-top: 20px;">
+                            <button type="submit" id="analyze-btn" class="btn">
+                                <span>Run Analysis</span>
+                            </button>
+                        </div>
+                    </form>
+                    <br>
+                    <div id="analyze-log" style="display:none; background: #202225; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 0.9em; border-left: 3px solid #5865F2;">
+                        <span style="color: #b9bbbe;">> Ready...</span>
+                    </div>
+                </div>
+
+                <!-- Reports List -->
+                <div class="card">
+                    <h2>📑 Generated Reports</h2>
+                    <p class="meta">Download or view your HTML reports.</p>
+                    <br>
+                    {% if reports %}
+                    <ul class="list-group">
+                        {% for report in reports %}
+                        <li class="list-item">
+                            <div>
+                                <a href="/reports/{{ report.name }}" target="_blank" class="file-link">
+                                    {{ report.name }}
+                                </a>
+                            </div>
+                            <div style="text-align: right;">
+                                <span class="meta">{{ report.date }}</span>
+                                <span class="badge outline">HTML</span>
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p style="color: #72767d; font-style: italic;">No reports generated yet.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Toaster Container -->
+    <div id="toaster-container"></div>
+
+    <script>
+        // Init
+        document.addEventListener('DOMContentLoaded', () => {
+             loadGuilds();
+             
+             // Open correct tab if refreshed
+             const activeTab = localStorage.getItem('activeTab') || 'extraction';
+             openTab(activeTab);
+        });
+
+        // Resolve Channel Names - DEPRECATED / REMOVED
+        // Since we now name files as "ChannelName_ID.txt", resolution is no longer needed.
+        async function resolveChannelNames() {
+            // No-op
+        }
+
+        // Fetch Guilds
+        async function loadGuilds() {
+            const guildSelect = document.getElementById('guild-select');
+            const defaultGuildId = "1106299318966689793";
+            let defaultFound = false;
+
+            try {
+                // Add timestamp to prevent caching
+                const res = await fetch('/api/discord/guilds?t=' + Date.now());
+                const json = await res.json();
+                
+                if (json.status === 'success') {
+                    // If we find the default guild, we don't mark the placeholder as selected
+                    guildSelect.innerHTML = '<option value="" disabled>Select a server...</option>';
+                    
+                    if (!json.data || json.data.length === 0) {
+                        const opt = document.createElement('option');
+                        opt.disabled = true;
+                        opt.textContent = "No servers found (Check permissions/token)";
+                        guildSelect.appendChild(opt);
+                        console.warn("Received empty guild list from API");
+                    } else {
+                        json.data.forEach(g => {
+                            const opt = document.createElement('option');
+                            opt.value = g.id;
+                            opt.textContent = g.name;
+                            if (g.id === defaultGuildId) {
+                                opt.selected = true;
+                                defaultFound = true;
+                            }
+                            guildSelect.appendChild(opt);
+                        });
+                        
+                        // If default was found, trigger channel load automatically
+                        if (defaultFound) {
+                            loadChannels(defaultGuildId);
+                        } else {
+                            // Select placeholder if default not found
+                            guildSelect.querySelector('option[disabled]').selected = true;
+                        }
+                    }
+                } else {
+                    guildSelect.innerHTML = '<option disabled>Error loading servers</option>';
+                    showToast("Failed to load Discord servers: " + json.message, "error");
+                }
+            } catch (e) {
+                guildSelect.innerHTML = '<option disabled>Error loading servers</option>';
+                console.error(e);
+            }
+        }
+
+        // Fetch Channels
+        async function loadChannels(guildId) {
+            const channelSelect = document.getElementById('channel-select');
+            channelSelect.disabled = true;
+            channelSelect.innerHTML = '<option>Loading channels...</option>';
+            
+            try {
+                const res = await fetch(`/api/discord/channels/${guildId}?t=` + Date.now());
+                const json = await res.json();
+                
+                if (json.status === 'success') {
+                    channelSelect.innerHTML = '<option value="" disabled selected>Select a channel...</option>';
+                    json.data.forEach(c => {
+                        const opt = document.createElement('option');
+                        opt.value = c.id;
+                        opt.textContent = c.name;
+                        channelSelect.appendChild(opt);
+                    });
+                    channelSelect.disabled = false;
+                } else {
+                    channelSelect.innerHTML = '<option disabled>Error loading channels</option>';
+                    showToast("Failed to load channels: " + json.message, "error");
+                }
+            } catch (e) {
+                channelSelect.innerHTML = '<option disabled>Error loading channels</option>';
+                console.error(e);
+            }
+        }
+
+        // Tab Switching Logic
+        function openTab(tabName) {
+            localStorage.setItem('activeTab', tabName);
+            const tabs = document.querySelectorAll('.tab-content');
+            const btns = document.querySelectorAll('.tab-btn');
+
+            tabs.forEach(tab => tab.classList.remove('active'));
+            btns.forEach(btn => btn.classList.remove('active'));
+
+            document.getElementById(tabName).classList.add('active');
+            // Find button that calls this function (rough approximation)
+            Array.from(btns).find(b => b.textContent.toLowerCase().includes(tabName)).classList.add('active');
+        }
+
+        // Toast Notification Logic
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toaster-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `
+                <span>${message}</span>
+                <span class="toast-close" onclick="this.parentElement.remove()">✕</span>
+            `;
+            container.appendChild(toast);
+            
+            // Auto remove after 5 seconds
+            setTimeout(() => {
+                if(toast.parentElement) toast.remove();
+            }, 5000);
+        }
+
+        // Extraction Logic
+        async function handleExtract(event) {
+            event.preventDefault();
+            const select = document.getElementById('channel-select');
+            const btn = document.getElementById('extract-btn');
+            const errorBox = document.getElementById('extraction-error');
+            const logBox = document.getElementById('extract-log');
+
+            const channelId = select.value;
+            if (!channelId) return;
+
+            // Reset State
+            btn.disabled = true;
+            btn.innerHTML = `<span class="spinner">↻</span> Starting...`; 
+            errorBox.style.display = 'none';
+            errorBox.textContent = '';
+            
+            // Show Log
+            logBox.style.display = 'block';
+            logBox.innerHTML = `<span style="color: #00b0f4;">> Requesting extraction for ${channelId}...</span>`;
+
+            try {
+                const response = await fetch('/api/extract', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ channel_id: channelId })
+                });
+
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    showToast("Extraction started in background...", "info");
+                    logBox.innerHTML += `<br><span style="color: #b9bbbe;">> Job ID: ${result.job_id}</span>`;
+                    
+                    // Start Polling
+                    pollJob(result.job_id, logBox, btn, `<span>Start Extraction</span>`);
+                    
+                } else {
+                    throw new Error(result.message || "Unknown error occurred");
+                }
+
+            } catch (err) {
+                console.error(err);
+                errorBox.style.display = 'block';
+                errorBox.textContent = `Error: ${err.message}`;
+                showToast("Request failed!", "error");
+                logBox.innerHTML += `<br><span style="color: #ed4245;">> Error: ${err.message}</span>`;
+                btn.disabled = false;
+                btn.innerHTML = `<span>Start Extraction</span>`;
+            }
+        }
+
+        async function pollJob(jobId, logBox, btn, originalBtnHtml) {
+            const interval = setInterval(async () => {
+                try {
+                    const res = await fetch(`/api/jobs/${jobId}`);
+                    const job = await res.json();
+                    
+                    if (job.status === 'not_found') {
+                        clearInterval(interval);
+                        showToast("Job lost!", "error");
+                        btn.disabled = false;
+                        btn.innerHTML = originalBtnHtml;
+                        return;
+                    }
+
+                    // Render Logs (Append latest would be better, but full render is safer for now)
+                    let logsHtml = `<span style="color: #00b0f4;">> Job Status: ${job.status.toUpperCase()}</span>`;
+                    if (job.log && job.log.length > 0) {
+                         // Simple escaping and formatting
+                         const formattedLogs = job.log.map(l => {
+                             // Replace generic newlines with <br>
+                             return `> ${l.replace(/[<>&]/g, c => `&#${c.charCodeAt(0)};`)}`; 
+                         }).join('<br>');
+                         logsHtml += `<br>${formattedLogs}`;
+                    }
+                    if (job.error) {
+                         logsHtml += `<br><span style="color: #ed4245;">> ERROR DETAILS: ${job.error}</span>`;
+                    }
+                    
+                    logBox.innerHTML = logsHtml;
+
+                    // Check completion
+                    if (job.status === 'completed') {
+                        clearInterval(interval);
+                        showToast("Extraction completed successfully!", "success");
+                        logBox.innerHTML += `<br><span style="color: #3ba55c;">> PROCESS FINISHED.</span>`;
+                        btn.disabled = false;
+                        btn.innerHTML = originalBtnHtml;
+                        // Reload page to see new file
+                        setTimeout(() => location.reload(), 1500);
+                    } else if (job.status === 'failed') {
+                        clearInterval(interval);
+                        showToast("Extraction process failed.", "error");
+                        btn.disabled = false;
+                        btn.innerHTML = originalBtnHtml;
+                    }
+
+                } catch (e) {
+                    console.error("Polling error", e);
+                }
+            }, 1000); 
+        }
+
+        // Analysis Logic
+        async function handleAnalysis(event) {
+            event.preventDefault();
+            const fileSelect = document.getElementById('analysis-file-select');
+            const yearInput = document.getElementById('analysis-year');
+            const quarterSelect = document.getElementById('analysis-quarter');
+            const langSelect = document.getElementById('analysis-lang');
+            
+            const btn = document.getElementById('analyze-btn');
+            const errorBox = document.getElementById('analysis-error');
+            const logBox = document.getElementById('analyze-log');
+
+            if (!fileSelect.value) return;
+
+            const payload = {
+                file_path: fileSelect.value,
+                year: parseInt(yearInput.value),
+                quarter: quarterSelect.value || null,
+                language: langSelect.value
+            };
+
+            // Reset State
+            btn.disabled = true;
+            btn.innerHTML = `<span class="spinner">↻</span> Starting...`; 
+            errorBox.style.display = 'none';
+            errorBox.textContent = '';
+            
+            // Show Log
+            logBox.style.display = 'block';
+            logBox.innerHTML = `<span style="color: #00b0f4;">> Starting analysis for year ${payload.year}...</span>`;
+
+            try {
+                const response = await fetch('/api/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    showToast("Analysis started in background...", "info");
+                    logBox.innerHTML += `<br><span style="color: #b9bbbe;">> Job ID: ${result.job_id}</span>`;
+                    
+                    // Start Polling
+                    pollJob(result.job_id, logBox, btn, `<span>Run Analysis</span>`);
+                } else {
+                    throw new Error(result.message || "Unknown error occurred");
+                }
+
+            } catch (err) {
+                console.error(err);
+                errorBox.style.display = 'block';
+                errorBox.textContent = `Error: ${err.message}`;
+                showToast("Request failed!", "error");
+                logBox.innerHTML += `<br><span style="color: #ed4245;">> Error: ${err.message}</span>`;
+                btn.disabled = false;
+                btn.innerHTML = `<span>Run Analysis</span>`;
+            }
+        }
+    </script>
+</body>
+</html>

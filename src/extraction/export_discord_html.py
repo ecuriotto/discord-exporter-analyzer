@@ -29,8 +29,12 @@ def export_discord_html(channel_id, output_html, token_file='discord_token.txt',
     # If this file is in src/extraction/, we need to go up two levels to reach root, then into input
     input_dir = os.path.join(os.path.dirname(__file__), '../../input')
     os.makedirs(input_dir, exist_ok=True)
-    # Always place the HTML in input/ folder
-    output_html_path = os.path.join(input_dir, os.path.basename(output_html))
+    
+    # Process output path
+    # If it's a template (has %), we trust the caller knows what they are doing, but we ensure it lands in input_dir
+    filename = os.path.basename(output_html)
+    output_html_path = os.path.join(input_dir, filename)
+    
     cmd = [
         cli_path,
         'export',

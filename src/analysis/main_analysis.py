@@ -145,8 +145,26 @@ def main():
     print(f"[INFO] Channel ID: {channel_id}")
 
     # 3. Get Metadata
-    channel_name = get_channel_name(channel_id)
-    print(f"[INFO] Resolved Channel Name: {channel_name}")
+    # Try to extract name from filename first (Name_ID.txt)
+    base_name = os.path.basename(input_path)
+    # Check if filename roughly matches "Name_ID.txt" pattern
+    # Assuming ID is at the end preceded by "_" or just the ID itself
+    # E.g. "circolo-dei-value-investor_12345.txt"
+    name_match = re.search(r"^(.*)_(\d{17,20})\.txt$", base_name)
+    
+    if name_match:
+        # Extract name part
+        potential_name = name_match.group(1)
+        # Verify it's not just "%n" or generic
+        if potential_name and "%n" not in potential_name:
+            channel_name = potential_name
+            print(f"[INFO] Using Channel Name from filename: {channel_name}")
+        else:
+            channel_name = get_channel_name(channel_id)
+            print(f"[INFO] Resolved Channel Name (via CLI): {channel_name}")
+    else:
+        channel_name = get_channel_name(channel_id)
+        print(f"[INFO] Resolved Channel Name (via CLI): {channel_name}")
 
     # 4. Parse Data & Filter by Year
     df = parse_and_clean_discord_txt(input_path)

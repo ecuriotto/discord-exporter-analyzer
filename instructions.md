@@ -54,6 +54,17 @@ Analysis of the output `.txt` files exported via DiscordChatExporter.
 - [x] **Ticket 4.2:** **Integration:** Embed Plotly charts (JSON/div) and the WordCloud image into the template.
 - [x] **Ticket 4.3:** **Final Export:** Compile everything into `Report_Discord_2025.html`.
 
+### SPRINT 5: Web Application Helper
+- [x] **Ticket 5.1:** **Web Backend setup:** Create a lightweight web server (e.g., Flask/FastAPI) to expose endpoints for Extraction and Analysis scripts.
+- [x] **Ticket 5.2:** **Dashboard - Extraction:** Frontend page has two sections: Extraction and analyze. Extraction shows in input, with a dropdown list all the different channels/threads available, as they can retrieved by the discord server dynamically. It's mandatory to select one of them to allow for the extraction. Another input section is the list of already extracted channels/threads, with the extraction date, they are just visible in readonly. A button will allow to trigger the extraction, that can potentially create a file that's already existing, in this case the replacemebt should occur without notifying the user. Some log should shown as a toaster, in order to let the user know the extraction execution (since this can take several minutes).Python errors should be shown in the page itself. Input and output can be mocked at this stage (implementation will happen in Ticket 5.4)
+- [x] **Ticket 5.3:** **Dashboard - Analysis:** Analyze shows in input the extracted channels. It will allow to select some parameters (year (default the previous one), quarter (default the previous one), language (default italian) and anything that can be useful for the main_analysis). A button will allow to trigger the extraction, that can potentially create a file that's already existing, in this case the replacemebt should occur without notifying the user. Some log should shown as a toaster, in order to let the user know the extraction execution (since this can take several minutes). python errors should be shown in the page itself.Input and output can be mocked at this stage (implementation will happen in Ticket 5.5)
+- [x] **Ticket 5.4:** **Workflow Selector:** UI controls to trigger:
+    - **Extraction Only:** Run `main_extraction.py` for a selected channel.
+- [x] **Ticket 5.5:**  
+    - **Analysis Only:** Run `main_analysis.py` on existing data (with Year/Quarter selectors).
+- [ ]- **Ticket 5.6:**  Chain both operations in background.
+- [ ] **Ticket 5.7:** **Log Viewer:** WebSocket or Polling mechanism to stream the python script stdout (progress bars, logs) to the web UI in real-time.
+
 ---
 
 ## 🛠 CODING GUIDELINES FOR COPILOT

@@ -143,8 +143,9 @@ if __name__ == "__main__":
 
     # If using export, we can generate a default filename if none provided
     if args.export and not args.input_file:
-        # Default behavior: use valid input/{ChannelID}.html
-        args.input_file = os.path.join('input', f"{args.export}.html")
+        # Use a template pattern so the filename includes the channel name
+        # We rely on DiscordChatExporter to replace %n with the name
+        args.input_file = "%n_%c.html" # e.g. "General_12345.html"
 
     # If AFTER logic, we still don't have an input file, error out (unless export runs and we want to stop?) 
     # But usually we export AND extract.
@@ -158,10 +159,88 @@ if __name__ == "__main__":
     # If export is requested
     if args.export:
         print(f"Exporting channel {args.export}...")
-        # Assume input_path is the target HTML location
+        # Assume input_path is the target HTML location (or template)
+        # export_discord_html will force it into input/ dir
         if not export_discord_html(args.export, input_path):
             print("Export failed. Exiting.")
             sys.exit(1)
+        
+        # If we used a template (contains %), we need to find the actual file created
+        if "%" in input_path or args.input_file == "%n_%c.html":
+            # We look for files ending with _{channel_id}.html in input/
+            # %c is replaced by channel ID.
+            import glob
+            
+            # The pattern to match the file we just created. 
+            # Since we used "%n_%c.html", it ends with "_{id}.html"
+            search_pattern = os.path.join("input", f"*_{args.export}.html")
+            
+            # Find files (list is arbitrary order, so we need to sort by time to get the newest)
+            found_files = glob.glob(search_pattern)
+            
+            if found_files:
+                # Get the most recently modified file (the one we just exported)
+                input_path = max(found_files, key=os.path.getmtime)
+                print(f"[INFO] Resolved exported file to: {input_path}")
+                
+                # FIX: Check if CLI failed to replace %n (filename still contains %n)
+                base_name = os.path.basename(input_path)
+                if "%n" in base_name:
+                     print("[WARN] CLI failed to replace channel name placeholder. Attempting to fix filename...")
+                     try:
+                         # Read preamble to find real name
+                         # We can't trust full parse yet, just peek
+                         with open(input_path, 'r', encoding='utf-8', errors='ignore') as f:
+                             chunk = f.read(8192) # 8KB
+                             
+                         # Try to find title
+                         title_match = re.search(r'<title>(.*?)</title>', chunk, re.IGNORECASE)
+                         real_name = "Unknown_Channel"
+                         
+                         if title_match:
+                             full_title = title_match.group(1).strip()
+                             # Format: "Guild - Channel"
+                             parts = full_title.split(' - ')
+                             if len(parts) > 1:
+                                 real_name = parts[-1].strip()
+                             else:
+                                 real_name = full_title
+                         
+                         # Sanitize
+                         real_name = re.sub(r'[<>:"/\\|?*]', '_', real_name).strip()
+                         
+                         # reconstruct filename: Name_ID.html
+                         # Extract ID from current filename "%n_ID.html"
+                         id_match = re.search(r'_(\d+)\.html$', base_name)
+                         chan_id = id_match.group(1) if id_match else args.export
+                         
+                         new_filename = f"{real_name}_{chan_id}.html"
+                         new_path = os.path.join(os.path.dirname(input_path), new_filename)
+                         
+                         os.rename(input_path, new_path)
+                         print(f"[INFO] Renamed {base_name} -> {new_filename}")
+                         input_path = new_path
+                         
+                     except Exception as e:
+                         print(f"[ERROR] Failed to fix filename: {e}")
+
+            else:
+                print(f"[ERROR] Could not find the exported file matching pattern: {search_pattern}")
+                # Fallback to simple ID check just in case
+                fallback = os.path.join("input", f"{args.export}.html")
+                if os.path.exists(fallback):
+                     input_path = fallback
+                else:
+                     sys.exit(1)
+        else:
+            # If user provided a specific static path, ensure it lives in input/ if simply named
+            # But main_extraction is run from root usually, and export script handles input/ logic for creation.
+            # We need to ensure we read from correct place.
+            if not os.path.exists(input_path):
+                 # Check input/
+                 candidate = os.path.join("input", input_path)
+                 if os.path.exists(candidate):
+                     input_path = candidate
             
     # Convert HTML to TXT
     if not args.output:
