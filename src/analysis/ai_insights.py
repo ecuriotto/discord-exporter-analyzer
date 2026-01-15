@@ -32,9 +32,9 @@ def load_gemini_key():
     print("[WARN] GEMINI_API_KEY not found in env or gemini_token.txt.")
     return None
 
-def summarize_text(text_content, prompt_instructions, model_name="gemini-flash-latest", max_retries=1):
+def summarize_text(text_content, prompt_instructions, model_name="gemini-flash-latest", max_retries=3):
     """
-    Sends content to Gemini API. Uses 'gemini-flash-latest' which is verified to work.
+    Sends content to Gemini API. Uses 'gemini-flash-latest' to ensure we use a discovered model.
     """
     api_key = load_gemini_key()
     if not api_key:
@@ -44,28 +44,34 @@ def summarize_text(text_content, prompt_instructions, model_name="gemini-flash-l
     
     full_prompt = f"{prompt_instructions}\n\nDATA:\n{text_content}"
     
-    try:
-        # call API once
-        response = client.models.generate_content(
-            model=model_name,
-            contents=full_prompt
-        )
+    for attempt in range(max_retries + 1):
+        try:
+            # call API
+            response = client.models.generate_content(
+                model=model_name,
+                contents=full_prompt
+            )
+            
+            # Manual extraction to handle 'thought_signature' warnings cleanly
+            if response and response.candidates and response.candidates[0].content.parts:
+                parts = response.candidates[0].content.parts
+                # Join all text parts, ignoring non-text parts (like thought traces)
+                full_text = "".join([part.text for part in parts if part.text])
+                return full_text.strip()
+            elif response and response.text:
+                return response.text.strip()
+            else:
+                return "No text returned from AI."
         
-        # Manual extraction to handle 'thought_signature' warnings cleanly
-        if response and response.candidates and response.candidates[0].content.parts:
-            parts = response.candidates[0].content.parts
-            # Join all text parts, ignoring non-text parts (like thought traces)
-            full_text = "".join([part.text for part in parts if part.text])
-            return full_text.strip()
-        elif response and response.text:
-            return response.text.strip()
-        else:
-            return "No text returned from AI."
-    
-    except Exception as e:
-        # Print full error immediately
-        print(f"[ERROR] Gemini API Call Failed: {e}")
-        return f"Error: {str(e)}"
+        except Exception as e:
+            print(f"[ERROR] Gemini API Call Failed (Attempt {attempt + 1}/{max_retries + 1}): {e}")
+            if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
+                wait_time = 35  # Conservative wait for 429
+                print(f"[INFO] Hitting Rate Limits. Waiting {wait_time}s before retry...")
+                time.sleep(wait_time)
+            else:
+                # specific error not related to quota, maybe just break or short sleep
+                time.sleep(5)
             
     return "Failed to get AI response after multiple retries."
 
@@ -84,6 +90,7 @@ def load_prompt_template():
         Output Language: {language}
         Return ONLY valid JSON in this format:
         {{
+            "executive_summary": "A short, engaging paragraph summarizing the main vibe and events of this period.",
             "summary": ["bullet 1", "bullet 2", "bullet 3"],
             "sentiment": "One Word Label",
             "funniest_quote": {{ "text": "Quote text", "author": "Username" }},
@@ -174,6 +181,35 @@ def get_quarterly_insights(df, year=2025, target_quarter=None, language="Italian
             }
             
     return insights
+
+def generate_yearly_summary(insights, year, language="Italian"):
+    """
+    Synthesizes a high-level executive summary from the quarterly insights.
+    Returns a string (markdown or plain text paragraph).
+    """
+    if not insights:
+        return None
+
+    print(f"[AI] Generating Yearly Executive Summary from {len(insights)} quarters...")
+    
+    # Construct a meta-summary for the AI
+    meta_text = f"Year: {year}\nLanguage: {language}\n\n"
+    for q, data in insights.items():
+        meta_text += f"== {q} ==\n"
+        meta_text += f"Sentiment: {data.get('sentiment', 'Unknown')}\n"
+        meta_text += f"Key Topics: {', '.join(data.get('summary', []))}\n"
+        quote = data.get('impactful_quote', {}).get('text', '')
+        if quote:
+             meta_text += f"Key Quote: {quote}\n"
+        meta_text += "\n"
+
+    prompt = f"""
+    You are an expert analyst. Read these quarterly summaries of a Discord community's year.
+    Write a brief, engaging "Yearly Executive Summary" (max 150 words) that captures the overall vibe, evolution, and main themes of the year.
+    Output directly in {language}. No JSON, just the text paragraph.
+    """
+    
+    return summarize_text(meta_text, prompt)
 
 if __name__ == "__main__":
     # Allows detailed testing without running the full report

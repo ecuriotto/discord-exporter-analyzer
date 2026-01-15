@@ -17,15 +17,15 @@ Analysis of the output `.txt` files exported via DiscordChatExporter.
 ## 🚀 ROADMAP ESECUTIVA (Backlog dei Ticket)
 
 ### SPRINT 1: Data Engine & Parsing
-- **Ticket 1.1:** Implement regex parsing to convert the `.txt` into a Pandas DataFrame. Columns: `timestamp` (datetime), `user`, `message`.
-- **Ticket 1.2:** Data Cleaning: remove system messages, bot commands (e.g., prefix `!`, `/`), and handle multi-line messages.
-- **Ticket 1.3:** Integrity Check: print summary stats (total messages, date range) to verify the parsing.
+- [x] **Ticket 1.1:** Implement regex parsing to convert the `.txt` into a Pandas DataFrame. Columns: `timestamp` (datetime), `user`, `message`.
+- [x] **Ticket 1.2:** Data Cleaning: remove system messages, bot commands (e.g., prefix `!`, `/`), and handle multi-line messages.
+- [x] **Ticket 1.3:** Integrity Check: print summary stats (total messages, date range) to verify the parsing.
 
 ### SPRINT 2: Statistics & Visuals (Local)
-- **Ticket 2.1:** **Top Contributors:** Bar chart of the top 10 most active users.
-- **Ticket 2.2:** **Activity Heatmap:** Hourly activity distribution (Day of Week vs. Hour of Day).
-- **Ticket 2.3:** **Word Cloud:** Generate a WordCloud image using the most frequent terms (exclude common Italian/English stopwords). Save as base64 to embed in HTML.
-- **Ticket 2.4:** **Timeline:** Line chart showing message volume per month in 2025.
+- [x] **Ticket 2.1:** **Top Contributors:** Bar chart of the top 10 most active users.
+- [x] **Ticket 2.2:** **Activity Heatmap:** Hourly activity distribution (Day of Week vs. Hour of Day).
+- [x] **Ticket 2.3:** **Word Cloud:** Generate a WordCloud image using the most frequent terms (exclude common Italian/English stopwords). Save as base64 to embed in HTML.
+- [x] **Ticket 2.4:** **Timeline:** Line chart showing message volume per month in 2025.
 
 ### SPRINT 3: Gemini API Integration (Intelligence)
 - [x] **Ticket 3.1:** API Setup: Securely load `GEMINI_API_KEY`. Implement `summarize_text()` with exponential backoff for Rate Limits.
@@ -33,7 +33,7 @@ Analysis of the output `.txt` files exported via DiscordChatExporter.
     - A 3-bullet summary of main topics.
     - Dominant sentiment (e.g., "Excited", "Productive", "Chill").
     - "Funniest" or "Most Impactful" quote.
-- **Ticket 3.3:** **Executive Summary:** Pass monthly summaries to Gemini for a final high-level "Yearly Overview" (or Quarterly in case the quarter parameter is passed).
+- [x] **Ticket 3.3:** **Executive Summary:** Pass monthly summaries to Gemini for a final high-level "Yearly Overview" (or Quarterly in case the quarter parameter is passed).
 
 ### SPRINT 3.5: Rework & Enhancements
 - [x] **Ticket 3.4:** **Refactoring & Localization:**
@@ -41,7 +41,7 @@ Analysis of the output `.txt` files exported via DiscordChatExporter.
     - **Prompts:** Move hardcoded AI prompts into a separate file (e.g., `src/analysis/templates/system_prompt.txt`).
     - **Quotes Update:** Rework Monthly Analysis to extract **1 Funniest** AND **1 Most Impactful** quote.
 - [x] **Ticket 3.5:** **New Stat - The Spammer:** Identify and visualize users who share the most links (articles/videos).
-- **Ticket 3.6:** **Quarter Selection:** Add a `--quarter` (e.g., `Q1`) argument to analyze specific quarters only. If omitted, full year (default) or last year is used.
+- [x] **Ticket 3.6:** **Quarter Selection:** Add a `--quarter` (e.g., `Q1`) argument to analyze specific quarters only. If omitted, full year (default) or last year is used.
 
 ### SPRINT 4: UI & Report Export
 - [x] **Ticket 4.1:** **Modern UI:** Create a Dark Mode HTML template with responsive CSS.
@@ -51,8 +51,8 @@ Analysis of the output `.txt` files exported via DiscordChatExporter.
         - **Block 2:** Top Contributors & Spammers.
         - **Block 3:** Activity Timeline & Heatmap.
         - **Block 4:** Word Cloud & Funniest/Impactful Quotes.
-- **Ticket 4.2:** **Integration:** Embed Plotly charts (JSON/div) and the WordCloud image into the template.
-- **Ticket 4.3:** **Final Export:** Compile everything into `Report_Discord_2025.html`.
+- [x] **Ticket 4.2:** **Integration:** Embed Plotly charts (JSON/div) and the WordCloud image into the template.
+- [x] **Ticket 4.3:** **Final Export:** Compile everything into `Report_Discord_2025.html`.
 
 ---
 

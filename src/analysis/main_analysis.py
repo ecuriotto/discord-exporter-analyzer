@@ -17,7 +17,7 @@ if current_dir not in sys.path:
 
 from parse_and_clean import parse_and_clean_discord_txt
 from stats_and_visuals import get_top_contributors_chart, get_activity_heatmap, get_wordcloud_img, get_timeline_chart, get_yap_o_meter_chart, get_night_owls_chart, get_spammer_chart
-from ai_insights import get_quarterly_insights
+from ai_insights import get_quarterly_insights, generate_yearly_summary
 
 # Config
 INPUT_DIR = "input"
@@ -184,13 +184,31 @@ def main():
     # 5b. AI Insights (Quarterly)
     print(f"[INFO] Generating AI Quarterly Insights ({args.lang})...")
     quarterly_insights = {}
+    yearly_summary_text = None
+
     if not df.empty:
         # We already have target_year from args/default
         # Pass target_quarter if set
         quarterly_insights = get_quarterly_insights(df, year=target_year, target_quarter=target_quarter, language=args.lang)
-        # DEBUG print
+        
+        # Generate Executive Summary if we have any output
         if quarterly_insights:
              print(f"[DEBUG] AI Insights keys: {list(quarterly_insights.keys())}")
+             
+             # Optimization: If only 1 quarter, use the "executive_summary" directly from that quarter if available
+             if len(quarterly_insights) == 1:
+                 single_key = list(quarterly_insights.keys())[0]
+                 single_data = quarterly_insights[single_key]
+                 if "executive_summary" in single_data and single_data["executive_summary"]:
+                     print(f"[INFO] Single quarter detected ({single_key}). Using pre-generated Executive Summary.")
+                     yearly_summary_text = single_data["executive_summary"]
+                 else:
+                     # Fallback if old prompt or missing field
+                     print(f"[INFO] Single quarter detected, but 'executive_summary' missing. Generating fallback.")
+                     yearly_summary_text = generate_yearly_summary(quarterly_insights, target_year, args.lang)
+             else:
+                 # Multiple quarters: We must synthesize them
+                 yearly_summary_text = generate_yearly_summary(quarterly_insights, target_year, args.lang)
         else:
              print("[DEBUG] AI Insights dictionary is EMPTY.")
     
@@ -209,7 +227,8 @@ def main():
         yap_chart=yap_html,
         night_owls_chart=night_owls_html,
         spammer_chart=spammer_html,
-        quarterly_insights=quarterly_insights
+        quarterly_insights=quarterly_insights,
+        yearly_summary=yearly_summary_text
     )
 
     # 7. Save Output

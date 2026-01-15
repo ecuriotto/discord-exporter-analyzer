@@ -3,6 +3,7 @@ Output Language: {language} (Ensure all summaries and sentiments are in this lan
 
 Return ONLY valid JSON in this format:
 {
+    "executive_summary": "A short, engaging paragraph summarizing the main vibe and events of this period.",
     "summary": ["bullet 1", "bullet 2", "bullet 3"],
     "sentiment": "One Word Label",
     "funniest_quote": {
