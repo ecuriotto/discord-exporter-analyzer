@@ -31,10 +31,12 @@ def extract_discord_messages(html_file, output_file=None):
         print(f"File non trovato: {html_file}")
         return ""
 
+    print(f"[INFO] Reading HTML file: {html_file}...")
     # Leggi il file HTML
     with open(html_file, 'r', encoding='utf-8') as f:
         html_content = f.read()
     
+    print(f"[INFO] Loaded {len(html_content)/1024/1024:.2f} MB. Parsing HTML structure...")
     # Parse HTML con BeautifulSoup
     soup = BeautifulSoup(html_content, 'html.parser')
     
@@ -50,7 +52,12 @@ def extract_discord_messages(html_file, output_file=None):
     # Estrai tutti i messaggi
     messages = []
     message_containers = soup.find_all('div', class_='chatlog__message-container')
-    for container in message_containers:
+    print(f"[INFO] Found {len(message_containers)} message containers. Processing...")
+    
+    for i, container in enumerate(message_containers):
+        if i > 0 and i % 1000 == 0:
+            print(f"  -> Processed {i} messages...", end='\r')
+            
         message_div = container.find('div', class_='chatlog__message')
         if not message_div:
             continue
@@ -121,12 +128,31 @@ def extract_discord_messages(html_file, output_file=None):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Discord HTML to Text Extractor')
-    parser.add_argument('input_file', help='Input HTML file or "input/filename.html"')
+    # Make input_file optional (nargs='?')
+    parser.add_argument('input_file', help='Input HTML file or "input/filename.html"', nargs='?', default=None)
     parser.add_argument('--export', help='Channel ID to export first', default=None)
     parser.add_argument('--output', help='Output TXT file', default=None)
     
     args = parser.parse_args()
     
+    # Sanitize Channel ID early (handle input like GuildID/ChannelID)
+    if args.export and "/" in args.export:
+        raw_export = args.export
+        args.export = args.export.split("/")[-1]
+        print(f"[INFO] Detected composite ID '{raw_export}'. Using Channel ID: {args.export}")
+
+    # If using export, we can generate a default filename if none provided
+    if args.export and not args.input_file:
+        # Default behavior: use valid input/{ChannelID}.html
+        args.input_file = os.path.join('input', f"{args.export}.html")
+
+    # If AFTER logic, we still don't have an input file, error out (unless export runs and we want to stop?) 
+    # But usually we export AND extract.
+    if not args.input_file:
+        print("[ERROR] Please provide an input file or a channel ID to export.")
+        parser.print_help()
+        sys.exit(1)
+
     input_path = args.input_file
     
     # If export is requested

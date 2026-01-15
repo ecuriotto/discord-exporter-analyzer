@@ -40,13 +40,31 @@ def export_discord_html(channel_id, output_html, token_file='discord_token.txt',
         '-o', output_html_path
     ]
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode == 0:
-            print(f"Exported HTML to {output_html}")
+        print(f"[INFO] Starting Discord export for channel {channel_id}...")
+        print(f"[INFO] Command: {' '.join(cmd)}")
+        
+        # Use Popen to stream output line by line
+        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        
+        # Print output in real-time, filtering out progress bars
+        print("[CLI] Detailed progress hidden to reduce noise (exporting in background)...")
+        for line in process.stdout:
+            clean_line = line.strip()
+            # Skip progress bar lines (contain block characters or look like percentages only)
+            if "━" in clean_line or (clean_line.endswith("%") and "Warn" not in clean_line):
+                continue
+            if not clean_line:
+                continue
+            print(f"[CLI] {clean_line}")
+            
+        process.wait()
+        
+        if process.returncode == 0:
+            print(f"[SUCCESS] Exported HTML to {output_html_path}")
             return True
         else:
-            print(f"Export failed: {result.stderr}")
+            print(f"[ERROR] Export failed with return code {process.returncode}")
             return False
     except Exception as e:
-        print(f"Error running DiscordChatExporter: {e}")
+        print(f"[ERROR] Exception running DiscordChatExporter: {e}")
         return False

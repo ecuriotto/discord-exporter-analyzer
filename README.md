@@ -36,10 +36,40 @@ A toolset to export Discord chats, extract clean text for LLMs, and generate ric
 1. **Discord Token:** Create `discord_token.txt` in the root with your Discord user token.
 2. **Gemini Key:** Create `gemini_token.txt` in the root with your Google Gemini API key.
 3. **CLI Tool:** Ensure the DiscordChatExporter executable is in `DiscordChatExporterCli/`.
+4. **Dependencies:** Install the required Python packages.
+   ```bash
+   pip install -r requirements.txt
+   ```
+
 
 ## Usage
 
-### Run Analysis
+### End-to-End Workflow (Extract + Analyze)
+
+You can run the full process from extraction to report generation.
+
+1. **Extract Channel Data**  
+   Use the extraction tool to download the channel history.
+   ```bash
+   # Syntax: python src/extraction/main_extraction.py --export <CHANNEL_ID>
+   # NOTE: You don't need to specify the output filename; it auto-generates based on ID.
+
+   python src/extraction/main_extraction.py --export 1134530128517550231
+   ```
+   *   This downloads the HTML (e.g., `input/1134530128517550231.html`) and converts it to `output/1134530128517550231.txt`.
+
+2. **Run Analysis**  
+   Run the analysis script.
+   ```bash
+   python src/analysis/main_analysis.py --year 2025
+   ```
+   *   It automatically detects the `.txt` file in `output/`.
+   *   **Note:** If you have multiple files, specify one:
+       ```bash
+       python src/analysis/main_analysis.py --input output/1134530128517550231.txt --year 2025
+       ```
+
+### Run Analysis (Manual)
 Generate the report from an existing `.txt` chat log (found in `input/` or `output/`).
 
 ```bash
@@ -59,4 +89,18 @@ python src/analysis/main_analysis.py --lang English
 **Note:** If `--year` is omitted, the script defaults to the **previous year** (e.g., if run in 2026, it analyzes 2025).
 
 ### Future Roadmap
+
+#### Sprint 1: Web Application Helper
+**Goal:** Create a user-friendly web interface to manage the extraction and analysis workflow, removing the need for terminal commands.
+
+**Key Features:**
+- **Dashboard:** View available channels and previous reports.
+- **Workflow Selector:**
+    1.  **Extract Only:** Download channel history to local text files.
+    2.  **Analyze Only:** Run reports on existing data (filter by Year/Quarter).
+    3.  **End-to-End:** Run extraction followed immediately by analysis.
+- **Channel Manager:** visual selection of channels (saved in config).
+- **Log Viewer:** Real-time visibility into the background process (like the CLI progress bars).
+
+#### Backlog
 - Sentiment Analysis graphs.

@@ -85,23 +85,33 @@ def get_channel_name(channel_id, token_path="discord_token.txt"):
         print(f"[ERROR] Failed to run CLI: {e}")
         return f"Channel_{channel_id}"
 
-def find_input_file():
+def find_input_file(specific_path=None):
     """
     Finds the first suitable .txt file in input/ or output/.
+    Or uses the specific path if provided.
     Returns (file_path, channel_id).
     """
-    # Look for TXT in input/
-    txt_files = glob.glob(os.path.join(INPUT_DIR, "*.txt"))
-    if not txt_files:
-        # Fallback to output/ (dev convenience)
-        txt_files = glob.glob(os.path.join(OUTPUT_DIR, "*.txt"))
-        # Exclude generated reports or thread files
-        txt_files = [f for f in txt_files if "_20" in f or re.search(r"\d{18}", f)]
-    
-    if not txt_files:
-        return None, None
-    
-    target_file = txt_files[0]
+    if specific_path:
+        if not os.path.exists(specific_path):
+             print(f"[ERROR] Specified file not found: {specific_path}")
+             return None, None
+        target_file = specific_path
+    else:
+        # Look for TXT in input/
+        txt_files = glob.glob(os.path.join(INPUT_DIR, "*.txt"))
+        if not txt_files:
+            # Fallback to output/ (dev convenience)
+            txt_files = glob.glob(os.path.join(OUTPUT_DIR, "*.txt"))
+            # Exclude generated reports or thread files
+            txt_files = [f for f in txt_files if "_20" in f or re.search(r"\d{18}", f)]
+        
+        if not txt_files:
+            return None, None
+        
+        target_file = txt_files[0]
+        if len(txt_files) > 1:
+            print(f"[WARN] Multiple files found. Using: {target_file}. Use --input to specify.")
+
     # Extract ID from filename (assuming format ID_Date.txt or just ID...)
     # Regex for 17-19 digit ID
     match = re.search(r"(\d{17,20})", os.path.basename(target_file))
@@ -115,6 +125,7 @@ def main():
     parser.add_argument("--year", type=int, help="Specific year to analyze (default: previous year)")
     parser.add_argument("--quarter", type=str, help="Specific quarter to analyze (e.g., Q1)")
     parser.add_argument("--lang", default="Italian", help="Language for AI output (default: Italian)")
+    parser.add_argument("--input", default=None, help="Specific input .txt file path")
     args = parser.parse_args()
 
     # Determine target year (Default: Previous Year)
@@ -125,7 +136,7 @@ def main():
         os.makedirs(OUTPUT_DIR)
 
     # 2. Find Input
-    input_path, channel_id = find_input_file()
+    input_path, channel_id = find_input_file(args.input)
     if not input_path:
         print("[ERROR] No input .txt file found in input/ or output/.")
         sys.exit(1)
