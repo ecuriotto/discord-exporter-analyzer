@@ -26,6 +26,21 @@
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
+
+        @media print {
+            .card {
+                break-inside: avoid;
+                page-break-inside: avoid;
+                background-color: #313244 !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            body {
+                background-color: #1e1e2e !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+        }
     </style>
 </head>
 <body class="p-6 max-w-7xl mx-auto">
@@ -67,18 +82,32 @@
                 
                 <!-- Quotes Grid -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                    <!-- Funniest Quote -->
+                    <!-- Funniest Quotes -->
                     <div class="bg-gray-800/50 p-4 rounded-xl border border-gray-700 relative overflow-hidden group hover:border-green-500/50 transition-colors">
                         <div class="absolute top-0 right-0 p-2 opacity-10 text-6xl group-hover:opacity-20 transition-opacity">😂</div>
-                        <p class="text-xs text-green-400 uppercase font-bold mb-2 tracking-wider">Il Simpaticone</p>
-                        <blockquote class="italic text-gray-300 relative z-10">"{{ data.funniest_quote.text }}"</blockquote>
-                        <p class="text-right text-sm text-gray-500 mt-2 font-mono">@{{ data.funniest_quote.author }}</p>
+                        <p class="text-xs text-green-400 uppercase font-bold mb-2 tracking-wider">LA SIMPATIA</p>
+                        
+                        <div class="space-y-4 relative z-10">
+                            {% if data.funniest_quotes %}
+                                {% for quote in data.funniest_quotes %}
+                                <div class="border-b border-gray-700/50 pb-2 last:border-0 last:pb-0">
+                                    <blockquote class="italic text-gray-300">"{{ quote.text }}"</blockquote>
+                                    <p class="text-right text-sm text-gray-500 mt-1 font-mono">@{{ quote.author }}</p>
+                                </div>
+                                {% endfor %}
+                            {% elif data.funniest_quote %}
+                                <div>
+                                    <blockquote class="italic text-gray-300">"{{ data.funniest_quote.text }}"</blockquote>
+                                    <p class="text-right text-sm text-gray-500 mt-1 font-mono">@{{ data.funniest_quote.author }}</p>
+                                </div>
+                            {% endif %}
+                        </div>
                     </div>
                     
                     <!-- Impactful Quote -->
                     <div class="bg-gray-800/50 p-4 rounded-xl border border-gray-700 relative overflow-hidden group hover:border-red-500/50 transition-colors">
                         <div class="absolute top-0 right-0 p-2 opacity-10 text-6xl group-hover:opacity-20 transition-opacity">🔥</div>
-                        <p class="text-xs text-red-400 uppercase font-bold mb-2 tracking-wider">La Perla</p>
+                        <p class="text-xs text-red-400 uppercase font-bold mb-2 tracking-wider">LA SAGGEZZA</p>
                         <blockquote class="italic text-gray-300 relative z-10">"{{ data.impactful_quote.text }}"</blockquote>
                         <p class="text-right text-sm text-gray-500 mt-2 font-mono">@{{ data.impactful_quote.author }}</p>
                     </div>

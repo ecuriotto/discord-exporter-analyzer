@@ -244,11 +244,14 @@ if __name__ == "__main__":
             
     # Convert HTML to TXT
     if not args.output:
-        # Generate default output name: input.html -> input.txt
+        # Generate default output name: input.html -> output/txt/input.txt
         base = os.path.splitext(os.path.basename(input_path))[0]
-        # Or better: output/{base}.txt
-        os.makedirs('output', exist_ok=True)
-        args.output = os.path.join('output', f"{base}.txt")
+        
+        # Organize in subfolder
+        txt_out_dir = os.path.join('output', 'txt')
+        os.makedirs(txt_out_dir, exist_ok=True)
+        
+        args.output = os.path.join(txt_out_dir, f"{base}.txt")
         
     print(f"Extracting messages from {input_path}...")
     extract_discord_messages(input_path, args.output)

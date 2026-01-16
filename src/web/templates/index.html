@@ -86,6 +86,13 @@
         .toast-close { margin-left: auto; cursor: pointer; opacity: 0.8; }
         .toast-close:hover { opacity: 1; }
 
+        .btn-delete {
+            background: none; border: none; cursor: pointer; font-size: 1.1em;
+            padding: 4px 8px; border-radius: 4px; transition: background 0.2s;
+            margin-left: 10px; opacity: 0.6;
+        }
+        .btn-delete:hover { background: rgba(237, 66, 69, 0.2); opacity: 1; }
+
         @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 
         /* Error Box */
@@ -234,13 +241,19 @@
                         {% for report in reports %}
                         <li class="list-item">
                             <div>
-                                <a href="/reports/{{ report.name }}" target="_blank" class="file-link">
+                                <a href="{{ report.url }}" target="_blank" class="file-link">
                                     {{ report.name }}
                                 </a>
+                                {% if report.pdf_url %}
+                                <a href="{{ report.pdf_url }}" target="_blank" class="badge outline" style="margin-left: 10px; text-decoration: none; border-color: #ed4245; color: #ed4245;">
+                                    PDF
+                                </a>
+                                {% endif %}
                             </div>
                             <div style="text-align: right;">
                                 <span class="meta">{{ report.date }}</span>
                                 <span class="badge outline">HTML</span>
+                                <button onclick="deleteReport('{{ report.name }}')" class="btn-delete" title="Delete Report">🗑️</button>
                             </div>
                         </li>
                         {% endfor %}
@@ -546,6 +559,30 @@
                 logBox.innerHTML += `<br><span style="color: #ed4245;">> Error: ${err.message}</span>`;
                 btn.disabled = false;
                 btn.innerHTML = `<span>Run Analysis</span>`;
+            }
+        }
+
+        async function deleteReport(filename) {
+            if (!confirm(`Are you sure you want to delete ${filename}? This cannot be undone.`)) {
+                return;
+            }
+            
+            try {
+                const res = await fetch(`/api/reports/${encodeURIComponent(filename)}`, {
+                    method: 'DELETE'
+                });
+                const json = await res.json();
+                
+                if (json.status === 'success') {
+                    showToast(json.message, "success");
+                    // Refresh after delay
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showToast("Failed: " + json.message, "error");
+                }
+            } catch (err) {
+                console.error(err);
+                showToast("Network Error", "error");
             }
         }
     </script>

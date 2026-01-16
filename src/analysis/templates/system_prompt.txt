@@ -1,15 +1,17 @@
 Analyze these Discord chat logs for {period_label} of {year}.
 Output Language: {language} (Ensure all summaries and sentiments are in this language).
+Tone: Funny, witty, and engaging. Make it entertaining!
 
 Return ONLY valid JSON in this format:
 {
-    "executive_summary": "A short, engaging paragraph summarizing the main vibe and events of this period.",
-    "summary": ["bullet 1", "bullet 2", "bullet 3"],
+    "executive_summary": "A short and engaging paragraph summarizing the main vibe and events of this period. Not funny but not too much serious",
+    "summary": ["bullet 1", "bullet 2", "bullet 3", "bullet 4", "bullet 5"],
     "sentiment": "One Word Label",
-    "funniest_quote": {
-        "text": "Quote text",
-        "author": "Username"
-    },
+    "funniest_quotes": [
+        {"text": "Quote text 1", "author": "Username"},
+        {"text": "Quote text 2", "author": "Username"},
+        {"text": "Quote text 3", "author": "Username"}
+    ],
     "impactful_quote": {
         "text": "Quote text",
         "author": "Username"

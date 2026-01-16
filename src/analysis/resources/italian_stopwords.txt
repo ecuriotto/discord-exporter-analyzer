@@ -64,6 +64,7 @@ bene
 buono
 c
 c'
+c'è
 ch'
 che
 chi
@@ -79,6 +80,7 @@ colle
 collo
 come
 comprare
+così
 con
 consecutivi
 consecutivo
@@ -129,6 +131,7 @@ ebbi
 eccetto
 ecco
 ed
+edited
 egli
 entro
 era
@@ -206,6 +209,7 @@ hanno
 ho
 i
 il
+image
 in
 indi
 indietro
@@ -282,7 +286,6 @@ perche
 perché
 pero
 però
-persone
 piu
 più
 piu"
@@ -293,6 +296,7 @@ poi
 primo
 promesso
 puo
+può
 pur
 qua
 qual
@@ -304,6 +308,7 @@ qualmente
 quanta
 quante
 quanti
+quando
 quanto
 quarto
 quasi
@@ -345,6 +350,7 @@ sempre
 senza
 sette
 si
+sì
 sia
 siamo
 siano

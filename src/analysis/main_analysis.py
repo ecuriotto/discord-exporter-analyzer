@@ -18,6 +18,11 @@ if current_dir not in sys.path:
 from parse_and_clean import parse_and_clean_discord_txt
 from stats_and_visuals import get_top_contributors_chart, get_activity_heatmap, get_wordcloud_img, get_timeline_chart, get_yap_o_meter_chart, get_night_owls_chart, get_spammer_chart
 from ai_insights import get_quarterly_insights, generate_yearly_summary
+try:
+    from html_to_pdf import convert_html_to_pdf
+except ImportError:
+    # Just in case imports are weird
+    from src.analysis.html_to_pdf import convert_html_to_pdf
 
 # Config
 INPUT_DIR = "input"
@@ -99,6 +104,11 @@ def find_input_file(specific_path=None):
     else:
         # Look for TXT in input/
         txt_files = glob.glob(os.path.join(INPUT_DIR, "*.txt"))
+        
+        # Check output/txt/
+        if not txt_files:
+             txt_files = glob.glob(os.path.join(OUTPUT_DIR, "txt", "*.txt"))
+        
         if not txt_files:
             # Fallback to output/ (dev convenience)
             txt_files = glob.glob(os.path.join(OUTPUT_DIR, "*.txt"))
@@ -268,12 +278,33 @@ def main():
     # Use the target_year for the filename
     suffix = f"_Q{target_quarter}" if target_quarter else ""
     output_filename = f"{safe_name}_Report_{target_year}{suffix}.html"
-    output_path = os.path.join(OUTPUT_DIR, output_filename)
+    
+    # Organize in subfolders
+    html_dir = os.path.join(OUTPUT_DIR, "html")
+    pdf_dir = os.path.join(OUTPUT_DIR, "pdf")
+    os.makedirs(html_dir, exist_ok=True)
+    os.makedirs(pdf_dir, exist_ok=True)
+    
+    output_path = os.path.join(html_dir, output_filename)
     
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(html_content)
         
     print(f"[SUCCESS] Report generated: {output_path}")
+
+    # 8. Generate PDF
+    if convert_html_to_pdf:
+        # PDF filename
+        pdf_filename = output_filename.replace(".html", ".pdf")
+        pdf_path = os.path.join(pdf_dir, pdf_filename)
+        
+        print(f"[INFO] Generating PDF: {pdf_path}...")
+        try:
+            convert_html_to_pdf(output_path, pdf_path)
+            print(f"[SUCCESS] PDF generated: {pdf_path}")
+        except Exception as e:
+            print(f"[ERROR] PDF generation failed: {e}")
+            print("[INFO] Try running 'playwright install' if this is the first run.")
 
 if __name__ == "__main__":
     main()

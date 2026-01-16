@@ -176,7 +176,7 @@ def get_quarterly_insights(df, year=2025, target_quarter=None, language="Italian
             insights[quarter_label] = {
                 "summary": ["Analysis failed to parse."],
                 "sentiment": "Unknown",
-                "funniest_quote": {"text": "N/A", "author": ""},
+                "funniest_quotes": [{"text": "N/A", "author": ""}],
                 "impactful_quote": {"text": "N/A", "author": ""}
             }
             

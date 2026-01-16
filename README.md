@@ -58,7 +58,7 @@ The easiest way to use the tool is via the web interface.
 
 1. **Start the Server:**
    ```bash
-   uvicorn src.web.app:app --reload
+   python -m uvicorn src.web.app:app --reload
    ```
 2. **Open Dashboard:**
    Navigate to [http://localhost:8000](http://localhost:8000) in your browser.

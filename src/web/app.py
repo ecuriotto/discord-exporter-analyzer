@@ -213,7 +213,7 @@ app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(__file__
 
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
-def get_files(directory, extension):
+def get_files(directory, extension, url_prefix=""):
     """List files with specific extension in directory, sorted by modification time."""
     if not os.path.exists(directory):
         return []
@@ -224,12 +224,19 @@ def get_files(directory, extension):
     for f in files:
         stats = os.stat(f)
         filename = os.path.basename(f)
-        results.append({
+        item = {
             "name": filename,
             "path": f,
             "size": f"{stats.st_size / 1024:.1f} KB",
             "date": datetime.fromtimestamp(stats.st_mtime).strftime("%Y-%m-%d %H:%M")
-        })
+        }
+        if url_prefix:
+            item["url"] = f"{url_prefix}{filename}"
+        else:
+            # Fallback for backward compat if needed, though template should use url
+            item["url"] = f"/reports/{filename}" 
+            
+        results.append(item)
     return results
 
 
@@ -419,22 +426,48 @@ async def read_root(request: Request):
     """
     Dashboard Home.
     """
-    reports = get_files(OUTPUT_DIR, ".html")
-    # Txt files represent extracted channels ready for analysis
-    # We look in output/ primarily as that's where extraction puts them
-    channels = get_files(OUTPUT_DIR, ".txt")
+    # Scan subdirectories
+    html_dir = os.path.join(OUTPUT_DIR, "html")
+    pdf_dir = os.path.join(OUTPUT_DIR, "pdf")
+    txt_dir = os.path.join(OUTPUT_DIR, "txt")
     
-    # Also check input/ just in case user put them there manually
+    reports = get_files(html_dir, ".html", url_prefix="/reports/html/")
+    
+    # Check for PDFs and attach info
+    for report in reports:
+        pdf_name = report["name"].replace(".html", ".pdf")
+        pdf_path = os.path.join(pdf_dir, pdf_name)
+        if os.path.exists(pdf_path):
+             report["pdf_url"] = f"/reports/pdf/{pdf_name}"
+    
+    # Check legacy root output for backward compatibility
+    legacy_reports = get_files(OUTPUT_DIR, ".html", url_prefix="/reports/")
+    existing_names = {r["name"] for r in reports}
+    for r in legacy_reports:
+        if r["name"] not in existing_names:
+            reports.append(r)
+            
+    # Sort again by date because of merging
+    reports.sort(key=lambda x: x["date"], reverse=True)
+
+    # Channels (TXT)
+    channels = get_files(txt_dir, ".txt")
+    
+    # Legacy channels (root output)
+    legacy_channels = get_files(OUTPUT_DIR, ".txt")
+    existing_c_paths = {c["path"] for c in channels}
+    
+    for c in legacy_channels:
+        if c["path"] not in existing_c_paths:
+             channels.append(c)
+
+    # Input channels
     input_channels = get_files(INPUT_DIR, ".txt")
-    
-    # Merge channels, avoiding duplicates if any (based on name)
-    existing_names = {c["name"] for c in channels}
     for c in input_channels:
-        if c["name"] not in existing_names:
-            channels.append(c)
+         if not any(x["name"]==c["name"] for x in channels):
+             channels.append(c)
 
     # Simplified display name logic: use filename by default
-    # Since we fetch real channels dynamically, we cannot pre-populate names map easily without API calls.
     for channel in channels:
          channel["display_name"] = channel["name"]
 
@@ -448,3 +481,56 @@ async def read_root(request: Request):
 @app.get("/api/health")
 async def health_check():
     return {"status": "ok", "version": "1.0.0"}
+
+class DeleteResponse(BaseModel):
+    status: str
+    message: str
+
+@app.delete("/api/reports/{filename}")
+async def delete_report(filename: str):
+    """
+    Delete a report (HTML and PDF) by filename.
+    """
+    # Security check: filename should be just a name, no paths
+    if ".." in filename or "/" in filename or "\\" in filename:
+        return {"status": "error", "message": "Invalid filename."}
+
+    deleted_files = []
+    errors = []
+    
+    # 1. Try to find/delete HTML
+    # Check output/html
+    html_path = os.path.join(OUTPUT_DIR, "html", filename)
+    legacy_html_path = os.path.join(OUTPUT_DIR, filename)
+    
+    target_html = None
+    if os.path.exists(html_path):
+        target_html = html_path
+    elif os.path.exists(legacy_html_path):
+        target_html = legacy_html_path
+        
+    if target_html:
+        try:
+            os.remove(target_html)
+            deleted_files.append("HTML")
+        except Exception as e:
+            errors.append(f"Failed to delete HTML: {str(e)}")
+    
+    # 2. Try to find/delete PDF
+    pdf_filename = filename.replace(".html", ".pdf")
+    pdf_path = os.path.join(OUTPUT_DIR, "pdf", pdf_filename)
+    if os.path.exists(pdf_path):
+        try:
+            os.remove(pdf_path)
+            deleted_files.append("PDF")
+        except Exception as e:
+            errors.append(f"Failed to delete PDF: {str(e)}")
+            
+    if not deleted_files and not errors:
+        return {"status": "error", "message": "File not found."}
+        
+    msg = f"Deleted: {', '.join(deleted_files)}"
+    if errors:
+        msg += f". Errors: {', '.join(errors)}"
+        
+    return {"status": "success", "message": msg}
