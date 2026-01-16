@@ -5,6 +5,9 @@ import pandas as pd
 from google import genai
 from google.genai import types
 
+# Import centralized configuration
+from src.config import GEMINI_TOKEN_FILE, ANALYSIS_TEMPLATES_DIR
+
 def load_gemini_key():
     """
     Loads Gemini API Key from environment variable or 'gemini_token.txt' file in root.
@@ -14,15 +17,10 @@ def load_gemini_key():
     if env_key:
         return env_key
     
-    # 2. File in project root
-    # src/analysis/ai_insights.py -> ../../gemini_token.txt
-    current_dir = os.path.dirname(__file__)
-    root_dir = os.path.abspath(os.path.join(current_dir, '..', '..'))
-    token_path = os.path.join(root_dir, 'gemini_token.txt')
-    
-    if os.path.exists(token_path):
+    # 2. File in project root (using config path)
+    if os.path.exists(GEMINI_TOKEN_FILE):
         try:
-            with open(token_path, 'r', encoding='utf-8') as f:
+            with open(GEMINI_TOKEN_FILE, 'r', encoding='utf-8') as f:
                 key = f.read().strip()
                 if key:
                     return key
@@ -78,8 +76,8 @@ def summarize_text(text_content, prompt_instructions, model_name="gemini-flash-l
 def load_prompt_template():
     """Loads the system prompt from templates/system_prompt.txt"""
     try:
-        current_dir = os.path.dirname(__file__)
-        template_path = os.path.join(current_dir, 'templates', 'system_prompt.txt')
+        # Use centralized config path
+        template_path = os.path.join(ANALYSIS_TEMPLATES_DIR, 'system_prompt.txt')
         with open(template_path, 'r', encoding='utf-8') as f:
             return f.read()
     except Exception as e:
@@ -216,16 +214,16 @@ if __name__ == "__main__":
     print("Testing Gemini API connection...")
     
     # We need to test with real data. 
-    # Let's try to locate the output/ folder and find a txt file.
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    root_dir = os.path.abspath(os.path.join(current_dir, '..', '..'))
-    output_dir = os.path.join(root_dir, 'output')
-    
     import glob
-    from parse_and_clean import parse_and_clean_discord_txt
+    from src.analysis.parse_and_clean import parse_and_clean_discord_txt
+    from src.config import OUTPUT_DIR, OUTPUT_TXT_DIR
     
-    txt_files = glob.glob(os.path.join(output_dir, "*.txt"))
-    # filter out thread.txt if possible
+    # Try finding files in txt/ then root output/
+    txt_files = glob.glob(os.path.join(OUTPUT_TXT_DIR, "*.txt"))
+    if not txt_files:
+         txt_files = glob.glob(os.path.join(OUTPUT_DIR, "*.txt"))
+         
+    # filter out thread.txt if possible (usually thread dumps are not main channels)
     candidates = [f for f in txt_files if "thread.txt" not in f]
     if not candidates:
         candidates = txt_files

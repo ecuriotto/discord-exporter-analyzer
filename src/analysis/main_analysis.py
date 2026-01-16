@@ -24,13 +24,19 @@ except ImportError:
     # Just in case imports are weird
     from src.analysis.html_to_pdf import convert_html_to_pdf
 
-# Config
-INPUT_DIR = "input"
-OUTPUT_DIR = "output"
-TEMPLATE_DIR = "src/analysis/templates"
-CLI_PATH = "./DiscordChatExporterCli/DiscordChatExporter.Cli"
+# Import centralized configuration
+from src.config import (
+    INPUT_DIR, 
+    OUTPUT_DIR, 
+    OUTPUT_HTML_DIR,
+    OUTPUT_PDF_DIR,
+    OUTPUT_TXT_DIR,
+    ANALYSIS_TEMPLATES_DIR as TEMPLATE_DIR, 
+    CLI_PATH,
+    DISCORD_TOKEN_FILE
+)
 
-def get_channel_name(channel_id, token_path="discord_token.txt"):
+def get_channel_name(channel_id, token_path=DISCORD_TOKEN_FILE):
     """
     Uses DiscordChatExporter.Cli to fetch the channel name.
     """
@@ -107,7 +113,7 @@ def find_input_file(specific_path=None):
         
         # Check output/txt/
         if not txt_files:
-             txt_files = glob.glob(os.path.join(OUTPUT_DIR, "txt", "*.txt"))
+             txt_files = glob.glob(os.path.join(OUTPUT_TXT_DIR, "*.txt"))
         
         if not txt_files:
             # Fallback to output/ (dev convenience)
@@ -279,13 +285,10 @@ def main():
     suffix = f"_Q{target_quarter}" if target_quarter else ""
     output_filename = f"{safe_name}_Report_{target_year}{suffix}.html"
     
-    # Organize in subfolders
-    html_dir = os.path.join(OUTPUT_DIR, "html")
-    pdf_dir = os.path.join(OUTPUT_DIR, "pdf")
-    os.makedirs(html_dir, exist_ok=True)
-    os.makedirs(pdf_dir, exist_ok=True)
+    # Organize in subfolders (using centralized config paths)
+    # OUTPUT_HTML_DIR, OUTPUT_PDF_DIR are imported from config
     
-    output_path = os.path.join(html_dir, output_filename)
+    output_path = os.path.join(OUTPUT_HTML_DIR, output_filename)
     
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(html_content)
@@ -296,7 +299,7 @@ def main():
     if convert_html_to_pdf:
         # PDF filename
         pdf_filename = output_filename.replace(".html", ".pdf")
-        pdf_path = os.path.join(pdf_dir, pdf_filename)
+        pdf_path = os.path.join(OUTPUT_PDF_DIR, pdf_filename)
         
         print(f"[INFO] Generating PDF: {pdf_path}...")
         try:

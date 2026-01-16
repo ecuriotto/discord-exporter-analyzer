@@ -16,14 +16,16 @@ import glob
 import re
 from datetime import datetime
 
-# Configuration
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-OUTPUT_DIR = os.path.join(BASE_DIR, "output")
-INPUT_DIR = os.path.join(BASE_DIR, "input")
-TEMPLATES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates")
-TOKEN_FILE = os.path.join(BASE_DIR, "discord_token.txt")
-CLI_PATH = os.path.join(BASE_DIR, "DiscordChatExporterCli", "DiscordChatExporter.Cli")
-CACHE_FILE = os.path.join(BASE_DIR, "channel_names.json")
+# Import centralized configuration
+from src.config import (
+    BASE_DIR, 
+    OUTPUT_DIR, 
+    INPUT_DIR, 
+    WEB_TEMPLATES_DIR as TEMPLATES_DIR, 
+    DISCORD_TOKEN_FILE as TOKEN_FILE, 
+    CLI_PATH, 
+    CHANNEL_NAMES_FILE as CACHE_FILE
+)
 
 # In-memory Job Store
 JOBS = {}
@@ -202,12 +204,13 @@ async def get_channels(guild_id: str):
     except Exception as e:
          return {"status": "error", "message": str(e)}
 
-# Ensure Output Dir exists
-os.makedirs(OUTPUT_DIR, exist_ok=True)
-os.makedirs(INPUT_DIR, exist_ok=True)
+# Ensure Output Dir exists (handled in config.py, but good to keep locally if needed for mounting logic fallback)
+# But since we use config.py, we trust it creates folders.
+# Still, app.mount needs existing folders sometimes if we point to them directly.
 
 # Mount Static Files
 # We mount "output" so we can link to generated HTML reports
+# Note: config.OUTPUT_DIR covers the root output folder. 
 app.mount("/reports", StaticFiles(directory=OUTPUT_DIR), name="reports")
 app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "static")), name="static")
 

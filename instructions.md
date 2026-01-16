@@ -72,3 +72,10 @@ Analysis of the output `.txt` files exported via DiscordChatExporter.
 2. **Context Management:** For Gemini, don't send raw logs if they exceed the context window. Use the "Monthly Chunking" strategy.
 3. **WordCloud Cleaning:** Ensure the `WordCloud` library filters out "https", "Discord", "reazioni", and common conjunctions.
 4. **Modularity:** Keep functions atomic: `process_data()`, `get_stats()`, `get_ai_insights()`, `render_report()`.
+
+### SPRINT 6: Refactoring & Quality Assurance
+- [x] **Ticket 6.1:** **Configuration Centralization:** Create `src/config.py` to define absolute paths (`BASE_DIR`, `INPUT_DIR`, `OUTPUT_DIR`, `TOKEN_PATH`) dynamically. Refactor `app.py`, `main_analysis.py`, `ai_insights.py`, and `html_to_pdf.py` to import configuration from this central file.
+- [ ] **Ticket 6.2:** **Logging Standardization:** Replace `print()` statements with Python's `logging` module. Configure logging to output to both console and a file (e.g., `logs/app.log`) with appropriate levels (INFO, ERROR, DEBUG).
+- [ ] **Ticket 6.3:** **Memory Optimization:** Refactor `parse_and_clean.py` and `main_extraction.py` to use lazy loading (generators) for file reading. Process large chat logs line-by-line to reduce RAM usage.
+- [ ] **Ticket 6.4:** **Error Handling & Resilience:** precise error handling in critical paths (AI service, PDF generation). Ensure the pipeline degrades gracefully (e.g., skip AI insights if API fails but still generate stats).
+- [ ] **Ticket 6.5:** **Security & Env Utils:** Enhance environment variable handling. Support `.env` file using `python-dotenv` while maintaining backward compatibility with `.txt` token files.
