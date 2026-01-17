@@ -1,6 +1,19 @@
 import subprocess
 import os
 
+def get_discord_token(token_file='discord_token.txt'):
+    # 1. Environment Variable
+    token = os.getenv("DISCORD_TOKEN")
+    if token:
+        return token
+        
+    # 2. File
+    if os.path.isfile(token_file):
+        with open(token_file, 'r') as f:
+            return f.read().strip()
+            
+    return None
+
 def export_discord_html(channel_id, output_html, token_file='discord_token.txt', cli_path='DiscordChatExporterCli/DiscordChatExporter.Cli'):
     """
     Export Discord channel messages to HTML using DiscordChatExporter CLI.
@@ -12,15 +25,12 @@ def export_discord_html(channel_id, output_html, token_file='discord_token.txt',
     Returns:
         True if export succeeded, False otherwise
     """
-    # Ensure the token file exists
-    if not os.path.isfile(token_file):
-        print(f"Token file '{token_file}' not found.")
-        return False
-    with open(token_file, 'r') as f:
-        token = f.read().strip()
+    # Get Token
+    token = get_discord_token(token_file)
     if not token:
-        print("Discord token is empty.")
+        print(f"Discord token not found in env 'DISCORD_TOKEN' or file '{token_file}'.")
         return False
+
     # Compose the command to run the DiscordChatExporter CLI
     if not os.path.isfile(cli_path):
         print(f"DiscordChatExporter CLI '{cli_path}' not found.")

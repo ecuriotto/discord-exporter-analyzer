@@ -9,8 +9,6 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 import json
 import tempfile
-import asyncio
-import random
 
 import glob
 import re
@@ -26,11 +24,18 @@ from src.config import (
     CLI_PATH, 
     CHANNEL_NAMES_FILE as CACHE_FILE
 )
+from src.logger import setup_logger
+
+logger = setup_logger("web_app")
 
 # In-memory Job Store
 JOBS = {}
 
 app = FastAPI(title="Discord Analytics Dashboard")
+
+@app.get("/robots.txt", response_class=HTMLResponse)
+async def robots_txt():
+    return "User-agent: *\nAllow: /"
 
 def load_name_cache():
     if os.path.exists(CACHE_FILE):
@@ -83,9 +88,13 @@ def resolve_channel_name_cli(channel_id):
             files = glob.glob(os.path.join(temp_dir, "*.txt"))
             if files:
                 # The filename IS the channel name
-                return os.path.splitext(os.path.basename(files[0]))[0]
+                filename = os.path.splitext(os.path.basename(files[0]))[0]
+                # Filter out bad names where CLI failed to replace placeholder
+                if "%n" in filename:
+                    return None
+                return filename
         except Exception as e:
-            print(f"Error resolving name for {channel_id}: {e}")
+            logger.error(f"Error resolving name for {channel_id}: {e}")
             return None
     return None
 
@@ -123,6 +132,12 @@ async def resolve_names(request: NameResolutionRequest):
     return {"status": "success", "names": results}
 
 def get_discord_token():
+    # 1. Environment Variable
+    token = os.getenv("DISCORD_TOKEN")
+    if token:
+        return token
+
+    # 2. File
     if not os.path.exists(TOKEN_FILE):
         return None
     with open(TOKEN_FILE, 'r') as f:
@@ -187,7 +202,7 @@ async def get_guilds():
         guilds = parse_cli_list(lines)
         return {"status": "success", "data": guilds}
     except Exception as e:
-        print(f"Error fetching guilds: {e}")
+        logger.error(f"Error fetching guilds: {e}")
         return {"status": "error", "message": str(e)}
 
 @app.get("/api/discord/channels/{guild_id}")
@@ -315,6 +330,11 @@ async def trigger_extraction(request: ExtractionRequest, background_tasks: Backg
     Trigger the extraction script in the background.
     """
     channel_id = request.channel_id
+    
+    # Security Check: Channel ID must be numeric
+    if not channel_id.isdigit():
+        return {"status": "error", "message": "Invalid Channel ID. Must be numeric."}
+
     job_id = str(uuid.uuid4())
     
     # Initialize Job
@@ -390,11 +410,32 @@ def run_analysis(job_id: str, file_path: str, year: int, quarter: str, language:
 async def get_job_status(job_id: str):
     return JOBS.get(job_id, {"status": "not_found"})
 
+def is_safe_path(path: str, allowed_dirs: list[str]) -> bool:
+    """
+    Ensure the path is strictly within the allowed directories.
+    Prevents directory traversal attacks.
+    """
+    try:
+        # Resolve absolute path
+        abs_path = os.path.abspath(path)
+        
+        for d in allowed_dirs:
+            abs_allowed = os.path.abspath(d)
+            if abs_path.startswith(abs_allowed):
+                return True
+        return False
+    except Exception:
+        return False
+
 @app.post("/api/analyze")
 async def trigger_analysis(request: AnalysisRequest, background_tasks: BackgroundTasks):
     """
     Trigger the analysis script in the background.
     """
+    # Security Check: Ensure file is in INPUT_DIR or OUTPUT_TXT_DIR
+    if not is_safe_path(request.file_path, [INPUT_DIR, OUTPUT_DIR]):
+        return {"status": "error", "message": "Invalid file path. Access denied."}
+
     job_id = str(uuid.uuid4())
     file_name = os.path.basename(request.file_path)
     

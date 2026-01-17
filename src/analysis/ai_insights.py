@@ -2,76 +2,112 @@ import os
 import time
 import json
 import pandas as pd
-from google import genai
-from google.genai import types
+from openai import OpenAI
 
 # Import centralized configuration
-from src.config import GEMINI_TOKEN_FILE, ANALYSIS_TEMPLATES_DIR
+from src.config import OPENROUTER_TOKEN_FILE, ANALYSIS_TEMPLATES_DIR, ANALYSIS_RESOURCES_DIR
+from src.logger import setup_logger
 
-def load_gemini_key():
+logger = setup_logger("ai_insights")
+
+def load_free_models():
     """
-    Loads Gemini API Key from environment variable or 'gemini_token.txt' file in root.
+    Loads the list of free models from resources/free_models.json
+    """
+    try:
+        models_path = os.path.join(ANALYSIS_RESOURCES_DIR, "free_models.json")
+        if os.path.exists(models_path):
+            with open(models_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+    except Exception as e:
+        logger.error(f"Failed to load free_models.json: {e}")
+    
+    # Fallback default list if file fails
+    return [
+        "google/gemini-2.0-flash-exp:free",
+        "meta-llama/llama-3.3-70b-instruct:free",
+        "qwen/qwen-2.5-72b-instruct:free"
+    ]
+
+# Initialize model list
+FREE_MODELS = load_free_models()
+
+def load_openrouter_key():
+    """
+    Loads OpenRouter API Key from environment variable or 'openRouter_token.txt' file in root.
     """
     # 1. Environment Variable
-    env_key = os.getenv("GEMINI_API_KEY")
+    env_key = os.getenv("OPENROUTER_API_KEY")
     if env_key:
         return env_key
     
-    # 2. File in project root (using config path)
-    if os.path.exists(GEMINI_TOKEN_FILE):
+    # 2. File in project root
+    if os.path.exists(OPENROUTER_TOKEN_FILE):
         try:
-            with open(GEMINI_TOKEN_FILE, 'r', encoding='utf-8') as f:
+            with open(OPENROUTER_TOKEN_FILE, 'r', encoding='utf-8') as f:
                 key = f.read().strip()
                 if key:
                     return key
         except Exception as e:
-            print(f"[WARN] Error reading gemini_token.txt: {e}")
+            logger.warning(f"Error reading openRouter_token.txt: {e}")
             
-    print("[WARN] GEMINI_API_KEY not found in env or gemini_token.txt.")
+    logger.warning("OPENROUTER_API_KEY not found in env or openRouter_token.txt.")
     return None
 
-def summarize_text(text_content, prompt_instructions, model_name="gemini-flash-latest", max_retries=3):
+def summarize_text(text_content, prompt_instructions, max_retries=2):
     """
-    Sends content to Gemini API. Uses 'gemini-flash-latest' to ensure we use a discovered model.
+    Sends content to OpenRouter API with fallback to different free models.
     """
-    api_key = load_gemini_key()
+    api_key = load_openrouter_key()
     if not api_key:
         return "AI Analysis Unavailable: No API Key found."
 
-    client = genai.Client(api_key=api_key)
+    client = OpenAI(
+        base_url="https://openrouter.ai/api/v1",
+        api_key=api_key,
+    )
     
     full_prompt = f"{prompt_instructions}\n\nDATA:\n{text_content}"
     
-    for attempt in range(max_retries + 1):
-        try:
-            # call API
-            response = client.models.generate_content(
-                model=model_name,
-                contents=full_prompt
-            )
+    models_attempted = 0
+    max_model_attempts = 5
+
+    for model in FREE_MODELS:
+        if models_attempted >= max_model_attempts:
+            logger.warning(f"Exceeded limit of {max_model_attempts} different models tried. Aborting AI analysis.")
+            break
             
-            # Manual extraction to handle 'thought_signature' warnings cleanly
-            if response and response.candidates and response.candidates[0].content.parts:
-                parts = response.candidates[0].content.parts
-                # Join all text parts, ignoring non-text parts (like thought traces)
-                full_text = "".join([part.text for part in parts if part.text])
-                return full_text.strip()
-            elif response and response.text:
-                return response.text.strip()
-            else:
-                return "No text returned from AI."
+        logger.info(f"Trying model: {model}...")
+        models_attempted += 1
         
-        except Exception as e:
-            print(f"[ERROR] Gemini API Call Failed (Attempt {attempt + 1}/{max_retries + 1}): {e}")
-            if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
-                wait_time = 35  # Conservative wait for 429
-                print(f"[INFO] Hitting Rate Limits. Waiting {wait_time}s before retry...")
-                time.sleep(wait_time)
-            else:
-                # specific error not related to quota, maybe just break or short sleep
-                time.sleep(5)
-            
-    return "Failed to get AI response after multiple retries."
+        for attempt in range(max_retries):
+            try:
+                chat_completion = client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {"role": "user", "content": full_prompt}
+                    ],
+                    extra_headers={
+                        "HTTP-Referer": "http://localhost:3000", 
+                        "X-Title": "Discord Analysis Tool",
+                    }
+                )
+                
+                content = chat_completion.choices[0].message.content
+                if content:
+                    logger.info(f"Successfully generated insights using model: {model}")
+                    return content.strip()
+                
+            except Exception as e:
+                logger.error(f"Model {model} failed (Attempt {attempt+1}): {e}")
+                if "429" in str(e): # Rate limit
+                    time.sleep(2)
+                else:
+                    break # Try next model immediately for non-rate-limit errors
+        
+        logger.warning(f"Model {model} exhausted all retries. Switching to next model...")
+
+    return "Failed to get AI response from all available models."
 
 def load_prompt_template():
     """Loads the system prompt from templates/system_prompt.txt"""
@@ -98,7 +134,7 @@ def load_prompt_template():
 
 def get_quarterly_insights(df, year=2025, target_quarter=None, language="Italian"):
     """
-    Groups messages by Quarter (Q1, Q2, Q3, Q4) and gets insights from Gemini.
+    Groups messages by Quarter (Q1, Q2, Q3, Q4) and gets insights from OpenRouter/LLM.
     Returns a dict: { 'Q1': {'summary': [], 'sentiment': '', ...}, ... }
     """
     if 'timestamp' not in df.columns:
@@ -112,11 +148,7 @@ def get_quarterly_insights(df, year=2025, target_quarter=None, language="Italian
     df_year = df[df['timestamp'].dt.year == year].copy()
     
     if df_year.empty:
-        print(f"[WARN] No data found for year {year}. Skipping AI analysis.")
-        return {}
-        
-    insights = {}
-    
+        logger.warning(f"No data found for year {year}. Skipping AI analysis.")
     # helper to identify quarter
     df_year['quarter'] = df_year['timestamp'].dt.quarter
     
@@ -126,13 +158,15 @@ def get_quarterly_insights(df, year=2025, target_quarter=None, language="Italian
     # Determine quarters to process
     quarters_to_process = [target_quarter] if target_quarter else sorted(df_year['quarter'].unique())
     
+    insights = {}
+    
     for q_idx in quarters_to_process:
         quarter_data = df_year[df_year['quarter'] == q_idx]
         if quarter_data.empty:
             continue
             
         quarter_label = f"Q{q_idx}"
-        print(f"\n[AI] Analyzer: Processing {quarter_label} ({len(quarter_data)} msgs)...")
+        logger.info(f"Analyzer: Processing {quarter_label} ({len(quarter_data)} msgs)...")
         
         # --- Payload / Token Management ---
         # A single quarter might be huge. If > 1500 messages, we risk hitting 
@@ -148,7 +182,7 @@ def get_quarterly_insights(df, year=2025, target_quarter=None, language="Italian
             # We sample evenly across the quarter if possible, 
             # currently just random sample + sort is fine for general sentiment.
             msgs_to_process = quarter_data.sample(limit_msgs).sort_values('timestamp')
-            print(f"   -> Sampled down to {limit_msgs} messages for API safety.")
+            logger.info(f"   -> Sampled down to {limit_msgs} messages for API safety.")
              
         text_blob = "\n".join(
             (msgs_to_process['user'] + ": " + msgs_to_process['message'].astype(str)).tolist()
@@ -168,9 +202,9 @@ def get_quarterly_insights(df, year=2025, target_quarter=None, language="Italian
         try:
             data = json.loads(clean_json)
             insights[quarter_label] = data
-            print(f"   -> Success! Analyzed {quarter_label}.")
+            logger.info(f"   -> Success! Analyzed {quarter_label}.")
         except json.JSONDecodeError:
-            print(f"   -> [WARN] JSON Parse Failed for {quarter_label}.")
+            logger.warning(f"   -> JSON Parse Failed for {quarter_label}.")
             insights[quarter_label] = {
                 "summary": ["Analysis failed to parse."],
                 "sentiment": "Unknown",
@@ -188,7 +222,7 @@ def generate_yearly_summary(insights, year, language="Italian"):
     if not insights:
         return None
 
-    print(f"[AI] Generating Yearly Executive Summary from {len(insights)} quarters...")
+    logger.info(f"Generating Yearly Executive Summary from {len(insights)} quarters...")
     
     # Construct a meta-summary for the AI
     meta_text = f"Year: {year}\nLanguage: {language}\n\n"
@@ -211,7 +245,7 @@ def generate_yearly_summary(insights, year, language="Italian"):
 
 if __name__ == "__main__":
     # Allows detailed testing without running the full report
-    print("Testing Gemini API connection...")
+    print("Testing AI API connection...")
     
     # We need to test with real data. 
     import glob

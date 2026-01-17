@@ -1,34 +1,53 @@
 import os
-from google import genai
+import requests
+import sys
+
+# Add project root to path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(os.path.dirname(current_dir))
+if project_root not in sys.path:
+    sys.path.append(project_root)
+
+from src.analysis.ai_insights import load_openrouter_key
 
 def list_models():
-    # Load key as before
-    current_dir = os.path.dirname(__file__)
-    root_dir = os.path.abspath(os.path.join(current_dir, '..', '..'))
-    token_path = os.path.join(root_dir, 'gemini_token.txt')
-    
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key and os.path.exists(token_path):
-        with open(token_path, 'r', encoding='utf-8') as f:
-            api_key = f.read().strip()
+    api_key = load_openrouter_key()
             
     if not api_key:
-        print("No API Key found.")
+        print("No OpenRouter API Key found.")
         return
 
-    client = genai.Client(api_key=api_key)
-    
+    print("Fetching free models from OpenRouter...")
     try:
-        # According to new SDK docs structure
-        # client.models.list() typically returns an iterator
-        print("Fetching models...")
-        for m in client.models.list():
-            # In the new SDK, m might be a different object structure.
-            # Let's print the name to see what we have
-            print(f"- {m.name}")
-            
+        response = requests.get("https://openrouter.ai/api/v1/models")
+        if response.status_code == 200:
+            models = response.json().get("data", [])
+            # Filter for free models if you want, or just list them all
+            # Usually looking for specific pricing or "free" in ID
+            count = 0
+            for  m in models:
+                mid = m.get("id")
+                pricing = m.get("pricing", {})
+                is_free = False
+                
+                # Check for zero pricing
+                try:
+                    prompt = float(pricing.get("prompt", 999))
+                    completion = float(pricing.get("completion", 999))
+                    if prompt == 0 and completion == 0:
+                        is_free = True
+                except:
+                    pass
+                
+                if ":free" in mid or is_free:
+                    print(f"- {mid}")
+                    count += 1
+            print(f"\nFound {count} potentially free models.")
+        else:
+            print(f"Error fetching models: {response.status_code} - {response.text}")
+
     except Exception as e:
-        print(f"Error listing models: {e}")
+        print(f"Error: {e}")
 
 if __name__ == "__main__":
     list_models()

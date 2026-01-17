@@ -1,70 +1,53 @@
 import os
-import time
-from google import genai
+import requests
+import sys
 
-def load_gemini_key():
-    current_dir = os.path.dirname(__file__)
-    root_dir = os.path.abspath(os.path.join(current_dir, '..', '..'))
-    token_path = os.path.join(root_dir, 'gemini_token.txt')
-    
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key and os.path.exists(token_path):
-        with open(token_path, 'r', encoding='utf-8') as f:
-            api_key = f.read().strip()
-    return api_key
+# Add project root to path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(os.path.dirname(current_dir))
+if project_root not in sys.path:
+    sys.path.append(project_root)
 
-def check_models():
-    api_key = load_gemini_key()
+from src.analysis.ai_insights import load_openrouter_key
+
+def check_quota():
+    api_key = load_openrouter_key()
     if not api_key:
-        print("No API Key.")
+        print("No OpenRouter API Key found.")
         return
 
-    client = genai.Client(api_key=api_key)
-    
-    # List of likely candidates
-    candidates = [
-        "gemini-1.5-flash",
-        "gemini-1.5-flash-latest",
-        "gemini-flash-latest",
-        "gemini-1.5-pro",
-        "gemini-pro",
-        "gemini-2.0-flash-exp",
-        "gemini-2.0-flash",
-        "gemini-2.0-flash-lite-preview-02-05"
-    ]
-    
-    # Add some from the list_models output if not already there
-    candidates.extend([
-        "gemini-2.5-flash", 
-        "gemini-2.0-flash-001"
-    ])
-
-    print(f"Testing {len(candidates)} models for availability (sending 'Hello')...\n")
-    
-    for model in candidates:
-        print(f"--- Testing {model} ---")
-        try:
-            response = client.models.generate_content(
-                model=model,
-                contents="Hello"
-            )
-            if response and response.text:
-                print(f"✅ SUCCESS: {model} worked! Response: {response.text.strip()[:20]}...")
-                # If we find one that works, we might just stop or continue to see all options
-                # Let's stop at the first working one to save time/quota
-                print(f"\n>>> RECOMMENDED MODEL: {model} <<<")
-                return
-        except Exception as e:
-            err = str(e)
-            if "404" in err:
-                print(f"❌ Not Found (404)")
-            elif "429" in err:
-                print(f"⚠️ Quota Exceeded (429) - Limit might be 0 or exhausted.")
-            else:
-                print(f"❌ Error: {err.split(' details:')[0]}") # Shorten error
+    print("Checking OpenRouter quota...")
+    try:
+        response = requests.get(
+            "https://openrouter.ai/api/v1/auth/key",
+            headers={"Authorization": f"Bearer {api_key}"}
+        )
         
-        # small sleep to avoid rate limiting the checker itself
-        time.sleep(1)
+        if response.status_code == 200:
+            data = response.json().get("data", {})
+            label = data.get("label", "Unknown")
+            usage = data.get("usage", 0)
+            limit = data.get("limit")
+            is_free = data.get("is_free_tier", False)
+            
+            print(f"Key Label: {label}")
+            print(f"Current Usage: ${usage}")
+            
+            if limit is not None:
+                remaining = data.get("limit_remaining")
+                print(f"Credit Limit: ${limit}")
+                print(f"Remaining: ${remaining}")
+            else:
+                print("Credit Limit: Unlimited (or checking not supported)")
+                
+            if is_free:
+                print("Tier: Free")
+            
+        else:
+             print(f"Error checking quota: {response.status_code} - {response.text}")
+             
+    except Exception as e:
+        print(f"Error: {e}")
 
 if __name__ == "__main__":
-    check_models()
+    check_quota()

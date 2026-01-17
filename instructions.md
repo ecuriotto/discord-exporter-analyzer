@@ -62,8 +62,6 @@ Analysis of the output `.txt` files exported via DiscordChatExporter.
     - **Extraction Only:** Run `main_extraction.py` for a selected channel.
 - [x] **Ticket 5.5:**  
     - **Analysis Only:** Run `main_analysis.py` on existing data (with Year/Quarter selectors).
-- [ ]- **Ticket 5.6:**  Chain both operations in background.
-- [ ] **Ticket 5.7:** **Log Viewer:** WebSocket or Polling mechanism to stream the python script stdout (progress bars, logs) to the web UI in real-time.
 
 ---
 
@@ -75,7 +73,25 @@ Analysis of the output `.txt` files exported via DiscordChatExporter.
 
 ### SPRINT 6: Refactoring & Quality Assurance
 - [x] **Ticket 6.1:** **Configuration Centralization:** Create `src/config.py` to define absolute paths (`BASE_DIR`, `INPUT_DIR`, `OUTPUT_DIR`, `TOKEN_PATH`) dynamically. Refactor `app.py`, `main_analysis.py`, `ai_insights.py`, and `html_to_pdf.py` to import configuration from this central file.
-- [ ] **Ticket 6.2:** **Logging Standardization:** Replace `print()` statements with Python's `logging` module. Configure logging to output to both console and a file (e.g., `logs/app.log`) with appropriate levels (INFO, ERROR, DEBUG).
-- [ ] **Ticket 6.3:** **Memory Optimization:** Refactor `parse_and_clean.py` and `main_extraction.py` to use lazy loading (generators) for file reading. Process large chat logs line-by-line to reduce RAM usage.
-- [ ] **Ticket 6.4:** **Error Handling & Resilience:** precise error handling in critical paths (AI service, PDF generation). Ensure the pipeline degrades gracefully (e.g., skip AI insights if API fails but still generate stats).
-- [ ] **Ticket 6.5:** **Security & Env Utils:** Enhance environment variable handling. Support `.env` file using `python-dotenv` while maintaining backward compatibility with `.txt` token files.
+- [x] **Ticket 6.2:** **Logging Standardization:** Replace `print()` statements with Python's `logging` module. Configure logging to output to both console and a file (e.g., `logs/app.log`) with appropriate levels (INFO, ERROR, DEBUG).
+- [x] **Ticket 6.3:** **Memory Optimization:** Refactor `parse_and_clean.py` and `main_extraction.py` to use lazy loading (generators) for file reading. Process large chat logs line-by-line to reduce RAM usage.
+- [x] **Ticket 6.4:** **Error Handling & Resilience:** precise error handling in critical paths (AI service, PDF generation). Ensure the pipeline degrades gracefully (e.g., skip AI insights if API fails but still generate stats).
+- [x] **Ticket 6.5:** **Security & Env Utils:** Enhance environment variable handling. Support `.env` file using `python-dotenv` while maintaining backward compatibility with `.txt` token files.
+
+### SPRINT 7: Testing & Documentation
+- [x] **Ticket 7.1:** **Unit & Integration Tests:** Create a test suite (`pytest`) for critical components: `parse_and_clean.py` (regex logic), `stats_and_visuals.py` (calculations), and data integrity.
+- [x] **Ticket 7.2:** **End-to-End Validation:** Verify the full pipeline: Web UI -> Extraction -> Analysis -> Report Generation. Ensure PDF export works if Playwright is present.
+- [x] **Ticket 7.3:** **Documentation Update:** Update `README.md` with final setup instructions (including `.env` usage, OpenRouter configuration), Prerequisites, and Usage examples. Update `ARCHITECTURE.md` to reflect the final project structure. Also be sure that there are instructions for other developers that want replicate the program on their own machines
+- [x] **Ticket 7.4:** **Final Polish:** Code formatting (black/flake8), removing any remaining temporary files or unused imports.
+
+### SPRINT 7.5: Performance & Accessibility
+- [x] **Ticket 7.5.1:** **Lighthouse Performance:** Fix "First Contentful Paint" and blocking resources.
+    - Identify and defer non-critical scripts/CSS.
+    - Optimize font loading (if any).
+    - Ensure `report_template.html` uses efficient loading for Tailwind/Plotly (explore local assets vs CDN or `defer`).
+- [x] **Ticket 7.5.2:** **Accessibility (A11y):**
+    - **Semantics:** Wrap the main content in a `<main>` tag.
+    - **Contrast:** Improve the contrast ratio for text on dark backgrounds (especially grey `#b9bbbe` on `#202225`).
+    - **Touch Targets:** Increase padding for buttons and links to meet minimum touch size requirements.
+
+

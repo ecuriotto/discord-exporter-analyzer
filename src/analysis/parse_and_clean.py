@@ -34,13 +34,12 @@ def parse_and_clean_discord_txt(txt_path):
     last_full_date = None
 
     try:
-        with open(txt_path, 'r', encoding='utf-8') as f:
-            lines = f.readlines()
+        f = open(txt_path, 'r', encoding='utf-8')
     except Exception as e:
         print(f"[ERROR] Could not read file {txt_path}: {e}")
         return pd.DataFrame()
 
-    for idx, line in enumerate(lines, 1):
+    for idx, line in enumerate(f, 1):
         line = line.strip()
         if not line:
             continue
@@ -88,5 +87,7 @@ def parse_and_clean_discord_txt(txt_path):
     if buffer and not is_system_message(buffer['message']) and not is_bot_command(buffer['message']):
         rows.append(buffer)
 
+    f.close()
+    
     df = pd.DataFrame(rows, columns=['timestamp', 'user', 'message'])
     return df

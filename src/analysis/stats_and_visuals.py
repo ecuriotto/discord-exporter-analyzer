@@ -4,9 +4,14 @@ from plotly.subplots import make_subplots
 from wordcloud import WordCloud, STOPWORDS
 import io
 import base64
-from parse_and_clean import parse_and_clean_discord_txt
 import sys
 import os
+
+# Import fix for both root execution and local execution
+try:
+    from src.analysis.parse_and_clean import parse_and_clean_discord_txt
+except ImportError:
+    from parse_and_clean import parse_and_clean_discord_txt
 
 def get_top_contributors_chart(df, top_n=10):
     """

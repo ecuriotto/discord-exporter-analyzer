@@ -9,8 +9,9 @@ __pycache__/
 
 # Secrets (IMPORTANT)
 discord_token.txt
-gemini_token.txt
+openRouter_token.txt
 token.txt
+.env
 
 # Data & Output
 input/
@@ -18,3 +19,10 @@ output/
 
 # External Tools
 DiscordChatExporterCli/
+
+# Testing & Logs
+.pytest_cache/
+.coverage
+htmlcov/
+logs/
+*.log

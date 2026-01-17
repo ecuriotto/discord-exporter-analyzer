@@ -22,8 +22,8 @@ graph TD
         API -->|Subprocess| AnalyzeScript[main_analysis.py]
         AnalyzeScript -->|Reads| TXT
         AnalyzeScript -->|Generates| Stats[Statistics & Charts]
-        AnalyzeScript -->|API Call| Gemini[Google Gemini AI]
-        Stats & Gemini -->|Compiles| Report[HTML Report]
+        AnalyzeScript -->|API Call| OpenRouter[OpenRouter / Gemini / Llama]
+        Stats & OpenRouter -->|Compiles| Report[HTML + PDF Report]
     end
     
     Report -->|Served by| API
@@ -35,17 +35,22 @@ graph TD
 2.  **Extraction**: 
     *   System invokes `DiscordChatExporter` to download chat history as HTML.
     *   System parses the HTML (BeautifulSoup) into a clean, LLM-friendly Text format.
-    *   *Result*: `output/ChannelName_ID.txt`.
+    *   *Result*: `output/txt/ChannelName_ID.txt`.
 3.  **Analysis**:
     *   System reads the Text file.
     *   **Statistical Analysis**: Pandas is used to calculate activity, word counts, and user stats.
-    *   **AI Enrichment**: The text is sent to Google Gemini to extract summaries, sentiment, and highlights.
+    *   **AI Enrichment**: The text is sent to an LLM via **OpenRouter** to extract summaries, sentiment, and highlights.
     *   **Visualization**: Plotly creates charts (Heatmaps, Bar charts).
 4.  **Reporting**:
     *   All data is injected into a Jinja2 HTML template.
-    *   *Result*: `output/ChannelName_Report_Year.html`.
+    *   (Optional) Playwright converts the HTML to PDF.
+    *   *Result*: `output/html/ChannelName_Report_Year.html` and `output/pdf/ChannelName_Report_Year.pdf`.
 
 ## 3. File Descriptions
+
+### Configuration & Root
+*   **`src/config.py`**: Centralized configuration module. Handles **absolute paths** and loads Environment Variables (`.env`) for secrets.
+*   **`src/logger.py`**: Standardized logging utility used across all modules.
 
 ### Web Layer (`src/web/`)
 *   **`app.py`**: The core application server (FastAPI). It serves the frontend, handles API requests for guild/channel lists, manages background tasks (extraction/analysis jobs), and serves the generated reports.
@@ -59,12 +64,13 @@ graph TD
 *   **`main_analysis.py`**: The orchestrator for the analysis phase. It loads the text data, calls the statistics and AI modules, and renders the final HTML report.
 *   **`parse_and_clean.py`**: Contains Regex patterns and logic to parse the raw text logs into structured DataFrames (Timestamp, Author, Content). Includes log cleaning logic.
 *   **`stats_and_visuals.py`**: Logic for generating visualizations using Plotly and WordCloud. Creates the "Top Contributors", "Activity Heatmap", and "Night Owls" charts.
-*   **`ai_insights.py`**: Handles interaction with the Google Gemini API. Contains the prompts used to generate summaries, sentiment analysis, and quarterly insights.
+*   **`ai_insights.py`**: Handles interaction with the **OpenRouter API**. Manages context windows, model selection, and prompt templates.
+*   **`html_to_pdf.py`**: Uses **Playwright** to capture the generated HTML report (with JavaScript charts) and save it as a PDF.
 
 ### Common/Config
+*   **`.env`**: (GitIgnored) The source of truth for secrets: `DISCORD_TOKEN`, `OPENROUTER_API_KEY`.
 *   **`requirements.txt`**: Python dependencies.
-*   **`discord_token.txt`**: Stores the Discord User Token (Auth).
-*   **`gemini_token.txt`**: Stores the Google Gemini API Key (AI Auth).
+
 
 ## 4. Visualization Prompt
 

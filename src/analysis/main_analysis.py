@@ -12,6 +12,11 @@ from jinja2 import Environment, FileSystemLoader
 # Local modules
 # Add src/analysis to sys.path if running from root
 current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(os.path.dirname(current_dir))
+
+if project_root not in sys.path:
+    sys.path.append(project_root)
+
 if current_dir not in sys.path:
     sys.path.append(current_dir)
 
@@ -35,20 +40,32 @@ from src.config import (
     CLI_PATH,
     DISCORD_TOKEN_FILE
 )
+from src.logger import setup_logger
+
+logger = setup_logger("analysis")
 
 def get_channel_name(channel_id, token_path=DISCORD_TOKEN_FILE):
     """
     Uses DiscordChatExporter.Cli to fetch the channel name.
     """
-    if not os.path.exists(token_path):
-        print(f"[WARN] Token file not found at {token_path}. Using ID as name.")
+    # 1. Environment Variable
+    token = os.getenv("DISCORD_TOKEN")
+    
+    # 2. File Fallback
+    if not token:
+        if os.path.exists(token_path):
+            try:
+                with open(token_path, 'r') as f:
+                    token = f.read().strip()
+            except Exception:
+                pass
+    
+    if not token:
+        logger.warning(f"No Discord token found. Using ID as name.")
         return f"Channel_{channel_id}"
 
     try:
-        with open(token_path, 'r') as f:
-            token = f.read().strip()
-            
-        print(f"[INFO] Fetching channel name for ID: {channel_id}...")
+        logger.info(f"Fetching channel name for ID: {channel_id}...")
         
         # Create a temporary directory to avoid polluting the workspace
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -85,15 +102,11 @@ def get_channel_name(channel_id, token_path=DISCORD_TOKEN_FILE):
             if match:
                 return match.group(1)
 
-        print("[WARN] Could not parse channel name. Fallback to ID.")
+        logger.warning("Could not parse channel name. Fallback to ID.")
         return f"Channel_{channel_id}"
         
     except Exception as e:
-        print(f"[WARN] Failed to fetch channel name: {e}")
-        return f"Channel_{channel_id}"
-
-    except Exception as e:
-        print(f"[ERROR] Failed to run CLI: {e}")
+        logger.warning(f"Failed to fetch channel name: {e}")
         return f"Channel_{channel_id}"
 
 def find_input_file(specific_path=None):
@@ -104,7 +117,7 @@ def find_input_file(specific_path=None):
     """
     if specific_path:
         if not os.path.exists(specific_path):
-             print(f"[ERROR] Specified file not found: {specific_path}")
+             logger.error(f"Specified file not found: {specific_path}")
              return None, None
         target_file = specific_path
     else:
@@ -146,7 +159,7 @@ def main():
 
     # Determine target year (Default: Previous Year)
     target_year = args.year if args.year else (datetime.now().year - 1)
-    print(f"[INFO] Target Year for Analysis: {target_year}")
+    logger.info(f"Target Year for Analysis: {target_year}")
 
     if not os.path.exists(OUTPUT_DIR):
         os.makedirs(OUTPUT_DIR)
@@ -154,11 +167,11 @@ def main():
     # 2. Find Input
     input_path, channel_id = find_input_file(args.input)
     if not input_path:
-        print("[ERROR] No input .txt file found in input/ or output/.")
-        sys.exit(1)
+        logger.error("No input .txt file found in input/ or output/.")
+        return
     
-    print(f"[INFO] Processing file: {input_path}")
-    print(f"[INFO] Channel ID: {channel_id}")
+    logger.info(f"Processing file: {input_path}")
+    logger.info(f"Channel ID: {channel_id}")
 
     # 3. Get Metadata
     # Try to extract name from filename first (Name_ID.txt)
@@ -174,18 +187,18 @@ def main():
         # Verify it's not just "%n" or generic
         if potential_name and "%n" not in potential_name:
             channel_name = potential_name
-            print(f"[INFO] Using Channel Name from filename: {channel_name}")
+            logger.info(f"Using Channel Name from filename: {channel_name}")
         else:
             channel_name = get_channel_name(channel_id)
-            print(f"[INFO] Resolved Channel Name (via CLI): {channel_name}")
+            logger.info(f"Resolved Channel Name (via CLI): {channel_name}")
     else:
         channel_name = get_channel_name(channel_id)
-        print(f"[INFO] Resolved Channel Name (via CLI): {channel_name}")
+        logger.info(f"Resolved Channel Name (via CLI): {channel_name}")
 
     # 4. Parse Data & Filter by Year
     df = parse_and_clean_discord_txt(input_path)
     if df.empty:
-        print("[WARN] DataFrame is empty. Check parsing logic.")
+        logger.warning("DataFrame is empty. Check parsing logic.")
     else:
         # Filter for the target year
         df['timestamp'] = pd.to_datetime(df['timestamp'])
@@ -217,7 +230,7 @@ def main():
             print(f"[WARN] No messages found for year {target_year}! Charts/AI will be empty.")
 
     # 5. Generate Visuals
-    print("[INFO] Generating charts...")
+    logger.info("Generating charts...")
     top_contributors_html = get_top_contributors_chart(df)
     activity_heatmap_html = get_activity_heatmap(df)
     wordcloud_html = get_wordcloud_img(df)
@@ -227,38 +240,45 @@ def main():
     spammer_html = get_spammer_chart(df)
 
     # 5b. AI Insights (Quarterly)
-    print(f"[INFO] Generating AI Quarterly Insights ({args.lang})...")
+    logger.info(f"Generating AI Quarterly Insights ({args.lang})...")
     quarterly_insights = {}
     yearly_summary_text = None
 
     if not df.empty:
-        # We already have target_year from args/default
-        # Pass target_quarter if set
-        quarterly_insights = get_quarterly_insights(df, year=target_year, target_quarter=target_quarter, language=args.lang)
-        
-        # Generate Executive Summary if we have any output
-        if quarterly_insights:
-             print(f"[DEBUG] AI Insights keys: {list(quarterly_insights.keys())}")
-             
-             # Optimization: If only 1 quarter, use the "executive_summary" directly from that quarter if available
-             if len(quarterly_insights) == 1:
-                 single_key = list(quarterly_insights.keys())[0]
-                 single_data = quarterly_insights[single_key]
-                 if "executive_summary" in single_data and single_data["executive_summary"]:
-                     print(f"[INFO] Single quarter detected ({single_key}). Using pre-generated Executive Summary.")
-                     yearly_summary_text = single_data["executive_summary"]
+        try:
+            # We already have target_year from args/default
+            # Pass target_quarter if set
+            quarterly_insights = get_quarterly_insights(df, year=target_year, target_quarter=target_quarter, language=args.lang)
+            
+            # Generate Executive Summary if we have any output
+            if quarterly_insights:
+                 logger.debug(f"AI Insights keys: {list(quarterly_insights.keys())}")
+                 
+                 # Optimization: If only 1 quarter, use the "executive_summary" directly from that quarter if available
+                 if len(quarterly_insights) == 1:
+                     single_key = list(quarterly_insights.keys())[0]
+                     single_data = quarterly_insights[single_key]
+                     if "executive_summary" in single_data and single_data["executive_summary"]:
+                         logger.info(f"Single quarter detected ({single_key}). Using pre-generated Executive Summary.")
+                         yearly_summary_text = single_data["executive_summary"]
+                     else:
+                         # Fallback if old prompt or missing field
+                         logger.info(f"Single quarter detected, but 'executive_summary' missing. Generating fallback.")
+                         yearly_summary_text = generate_yearly_summary(quarterly_insights, target_year, args.lang)
                  else:
-                     # Fallback if old prompt or missing field
-                     print(f"[INFO] Single quarter detected, but 'executive_summary' missing. Generating fallback.")
+                     # Multiple quarters: We must synthesize them
                      yearly_summary_text = generate_yearly_summary(quarterly_insights, target_year, args.lang)
-             else:
-                 # Multiple quarters: We must synthesize them
-                 yearly_summary_text = generate_yearly_summary(quarterly_insights, target_year, args.lang)
-        else:
-             print("[DEBUG] AI Insights dictionary is EMPTY.")
+            else:
+                 logger.warning("AI Insights dictionary is EMPTY. Skipping AI summary generation.")
+        except Exception as e:
+            logger.error(f"Critical error during AI Analysis: {e}")
+            logger.info("Proceeding with report generation without AI insights.")
+            # Ensure safe fallback values
+            quarterly_insights = {}
+            yearly_summary_text = "AI Analysis failed to generate a summary for this period."
     
     # 6. Render Report
-    print("[INFO] Rendering HTML report...")
+    logger.info("Rendering HTML report...")
     env = Environment(loader=FileSystemLoader(TEMPLATE_DIR))
     template = env.get_template('report_template.html')
     
@@ -293,7 +313,7 @@ def main():
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(html_content)
         
-    print(f"[SUCCESS] Report generated: {output_path}")
+    logger.info(f"Report generated: {output_path}")
 
     # 8. Generate PDF
     if convert_html_to_pdf:
@@ -301,13 +321,13 @@ def main():
         pdf_filename = output_filename.replace(".html", ".pdf")
         pdf_path = os.path.join(OUTPUT_PDF_DIR, pdf_filename)
         
-        print(f"[INFO] Generating PDF: {pdf_path}...")
+        logger.info(f"Generating PDF: {pdf_path}...")
         try:
             convert_html_to_pdf(output_path, pdf_path)
-            print(f"[SUCCESS] PDF generated: {pdf_path}")
+            logger.info(f"PDF generated: {pdf_path}")
         except Exception as e:
-            print(f"[ERROR] PDF generation failed: {e}")
-            print("[INFO] Try running 'playwright install' if this is the first run.")
+            logger.error(f"PDF generation failed: {e}")
+            logger.info("Try running 'playwright install' if this is the first run.")
 
 if __name__ == "__main__":
     main()

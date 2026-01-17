@@ -3,15 +3,26 @@ import sys
 import re
 import os
 import argparse
-from datetime import datetime
+
+# Setup Logger
+# We need to add project root to path to import src.logger if running as script
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(os.path.dirname(current_dir))
+if project_root not in sys.path:
+    sys.path.append(project_root)
+
+from src.logger import setup_logger
+from src.config import INPUT_DIR, OUTPUT_TXT_DIR
+logger = setup_logger("extraction")
+
 try:
     from src.extraction.export_discord_html import export_discord_html
 except ImportError:
-    # If running directly from src/extraction folder
+    # If project root is in sys.path, this should work.
+    # Fallback only if strictly necessary or running standalone without package context
     try:
         from export_discord_html import export_discord_html
     except ImportError:
-         # Fallback for some execution environments
          sys.path.append(os.path.dirname(__file__))
          from export_discord_html import export_discord_html
 
@@ -28,35 +39,48 @@ def extract_discord_messages(html_file, output_file=None):
     """
     
     if not os.path.exists(html_file):
-        print(f"File non trovato: {html_file}")
+        logger.error(f"File not found: {html_file}")
         return ""
 
-    print(f"[INFO] Reading HTML file: {html_file}...")
-    # Leggi il file HTML
+    logger.info(f"Reading HTML file: {html_file}...")
+    
+    # Use Streaming parsing where possible (pass file handler)
     with open(html_file, 'r', encoding='utf-8') as f:
-        html_content = f.read()
+        soup = BeautifulSoup(f, 'html.parser')
     
-    print(f"[INFO] Loaded {len(html_content)/1024/1024:.2f} MB. Parsing HTML structure...")
-    # Parse HTML con BeautifulSoup
-    soup = BeautifulSoup(html_content, 'html.parser')
+    logger.info("HTML Structure parsed. Processing messages...")
     
+    # Setup Output Stream
+    out_f = None
+    extracted_buffer_legacy = [] # Fallback if no output_file
+    
+    if output_file:
+        out_f = open(output_file, 'w', encoding='utf-8')
+    
+    def write_message(text):
+        if out_f:
+            out_f.write(text + "\n")
+        else:
+            extracted_buffer_legacy.append(text)
+
     # Estrai informazioni dal preamble (intestazione canale)
     preamble = soup.find('div', class_='preamble')
-    channel_info = ""
+
     if preamble:
         entries = preamble.find_all('div', class_='preamble__entry')
         if entries:
             channel_info = " / ".join([entry.get_text(strip=True) for entry in entries])
-            channel_info = f"CANALE: {channel_info}\n{'='*80}\n\n"
+            header = f"CANALE: {channel_info}\n{'='*80}\n\n"
+            write_message(header)
     
     # Estrai tutti i messaggi
-    messages = []
     message_containers = soup.find_all('div', class_='chatlog__message-container')
-    print(f"[INFO] Found {len(message_containers)} message containers. Processing...")
+    logger.info(f"Found {len(message_containers)} message containers. Processing...")
     
+    messages_count = 0
     for i, container in enumerate(message_containers):
         if i > 0 and i % 1000 == 0:
-            print(f"  -> Processed {i} messages...", end='\r')
+            logger.debug(f"Processed {i} messages...")
             
         message_div = container.find('div', class_='chatlog__message')
         if not message_div:
@@ -115,16 +139,16 @@ def extract_discord_messages(html_file, output_file=None):
              # The regex allows multi-line if handled keyfully, but usually we want one line or the parser handles it.
              # The parser `parse_and_clean.py` has `MESSAGE_REGEX_FULL` which matches the start, then consumes the rest.
              # So multiline content is fine as long as the next line doesn't start with a timestamp.
-             messages.append(f"{timestamp_str} {author_name}: {content_text}")
+             msg = f"{timestamp_str} {author_name}: {content_text}"
+             write_message(msg)
+             messages_count += 1
              
-    full_text = channel_info + "\n".join(messages)
-    
-    if output_file:
-        with open(output_file, 'w', encoding='utf-8') as f:
-            f.write(full_text)
-        print(f"Salvato output in {output_file} ({len(messages)} messaggi)")
-        
-    return full_text
+    if out_f:
+        out_f.close()
+        logger.info(f"Salvato output in {output_file} ({messages_count} messaggi)")
+        return ""
+    else:
+        return "\n".join(extracted_buffer_legacy)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Discord HTML to Text Extractor')
@@ -173,7 +197,7 @@ if __name__ == "__main__":
             
             # The pattern to match the file we just created. 
             # Since we used "%n_%c.html", it ends with "_{id}.html"
-            search_pattern = os.path.join("input", f"*_{args.export}.html")
+            search_pattern = os.path.join(INPUT_DIR, f"*_{args.export}.html")
             
             # Find files (list is arbitrary order, so we need to sort by time to get the newest)
             found_files = glob.glob(search_pattern)
@@ -227,7 +251,7 @@ if __name__ == "__main__":
             else:
                 print(f"[ERROR] Could not find the exported file matching pattern: {search_pattern}")
                 # Fallback to simple ID check just in case
-                fallback = os.path.join("input", f"{args.export}.html")
+                fallback = os.path.join(INPUT_DIR, f"{args.export}.html")
                 if os.path.exists(fallback):
                      input_path = fallback
                 else:
@@ -238,7 +262,7 @@ if __name__ == "__main__":
             # We need to ensure we read from correct place.
             if not os.path.exists(input_path):
                  # Check input/
-                 candidate = os.path.join("input", input_path)
+                 candidate = os.path.join(INPUT_DIR, input_path)
                  if os.path.exists(candidate):
                      input_path = candidate
             
@@ -248,10 +272,10 @@ if __name__ == "__main__":
         base = os.path.splitext(os.path.basename(input_path))[0]
         
         # Organize in subfolder
-        txt_out_dir = os.path.join('output', 'txt')
+        txt_out_dir = OUTPUT_TXT_DIR
         os.makedirs(txt_out_dir, exist_ok=True)
         
         args.output = os.path.join(txt_out_dir, f"{base}.txt")
         
-    print(f"Extracting messages from {input_path}...")
+    logger.info(f"Extracting messages from {input_path}...")
     extract_discord_messages(input_path, args.output)
