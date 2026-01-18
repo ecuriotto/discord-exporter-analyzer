@@ -23,14 +23,40 @@ def load_free_models():
         logger.error(f"Failed to load free_models.json: {e}")
     
     # Fallback default list if file fails
+    # Expanded list to minimize 429 exhaustion
     return [
         "google/gemini-2.0-flash-exp:free",
         "meta-llama/llama-3.3-70b-instruct:free",
-        "qwen/qwen-2.5-72b-instruct:free"
+        "qwen/qwen-2.5-72b-instruct:free",
+        "mistralai/mistral-7b-instruct:free",
+        "microsoft/phi-3-medium-128k-instruct:free",
+        "huggingfaceh4/zephyr-7b-beta:free",
+        "openchat/openchat-7b:free"
     ]
 
-# Initialize model list
+# Initialize free model list
 FREE_MODELS = load_free_models()
+
+def load_pay_models():
+    """
+    Loads the list of pay models from resources/pay_models.json
+    """
+    try:
+        models_path = os.path.join(ANALYSIS_RESOURCES_DIR, "pay_models.json")
+        if os.path.exists(models_path):
+            with open(models_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+    except Exception as e:
+        logger.error(f"Failed to load pay_models.json: {e}")
+    
+    # Fallback if file missing
+    return [
+        "google/gemini-2.0-flash-001",
+        "deepseek/deepseek-chat"
+    ]
+
+# Initialize pay model list
+PAY_MODELS = load_pay_models()
 
 def load_openrouter_key():
     """
@@ -54,9 +80,31 @@ def load_openrouter_key():
     logger.warning("OPENROUTER_API_KEY not found in env or openRouter_token.txt.")
     return None
 
-def summarize_text(text_content, prompt_instructions, max_retries=2):
+def check_model_availability(client, model):
     """
-    Sends content to OpenRouter API with fallback to different free models.
+    Performs a lightweight 'ping' to the model to check if it's available 
+    and not rate-limited, before sending the full payload.
+    """
+    try:
+        logger.info(f"Checking availability for model: {model}...")
+        client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": "Hi"}],
+            max_tokens=1,
+            extra_headers={
+                 "HTTP-Referer": "http://localhost:3000", 
+                 "X-Title": "Discord Analysis Tool (Health Check)",
+            }
+        )
+        return True
+    except Exception as e:
+        logger.warning(f"Model {model} unavailable during health check: {e}")
+        return False
+
+def summarize_text(text_content, prompt_instructions, max_retries=2, model_type="free"):
+    """
+    Sends content to OpenRouter API.
+    model_type: "free" (rotates free models) or "pay" (rotates pay models)
     """
     api_key = load_openrouter_key()
     if not api_key:
@@ -71,15 +119,26 @@ def summarize_text(text_content, prompt_instructions, max_retries=2):
     
     models_attempted = 0
     max_model_attempts = 5
+    
+    models_list = PAY_MODELS if model_type == "pay" else FREE_MODELS
 
-    for model in FREE_MODELS:
+    for model in models_list:
         if models_attempted >= max_model_attempts:
             logger.warning(f"Exceeded limit of {max_model_attempts} different models tried. Aborting AI analysis.")
             break
+        
+        # 1. Health Check (Prevent token waste/delays on dead models)
+        # Skip health check for pay models or make it optional? 
+        # Usually pay models are reliable, but let's keep it for safety unless it costs money.
+        # Health check uses 1 token. For pay models, this costs negligible money.
+        if not check_model_availability(client, model):
+            logger.info(f"Skipping model {model} (Health Check Failed).")
+            continue
             
-        logger.info(f"Trying model: {model}...")
+        logger.info(f"Model {model} is available. Proceeding with analysis ({model_type} mode)...")
         models_attempted += 1
         
+        # 2. Real Analysis Attempt
         for attempt in range(max_retries):
             try:
                 chat_completion = client.chat.completions.create(
@@ -100,42 +159,71 @@ def summarize_text(text_content, prompt_instructions, max_retries=2):
                 
             except Exception as e:
                 logger.error(f"Model {model} failed (Attempt {attempt+1}): {e}")
-                if "429" in str(e): # Rate limit
-                    time.sleep(2)
+                err_str = str(e)
+                
+                # Handling "free-models-per-day" hard limit
+                if "free-models-per-day" in err_str:
+                     logger.error("Daily free model limit reached. Stopping AI analysis.")
+                     return "AI Analysis Unavailable: Daily limit reached."
+                     
+                if "429" in err_str: # Rate limit
+                    time.sleep(5) # Increase wait
                 else:
                     break # Try next model immediately for non-rate-limit errors
+        
+        # Check if we should stop completely if we returned earlier
+        if "Unavailable" in locals().get('content', ''):
+             break
         
         logger.warning(f"Model {model} exhausted all retries. Switching to next model...")
 
     return "Failed to get AI response from all available models."
 
-def load_prompt_template():
-    """Loads the system prompt from templates/system_prompt.txt"""
+def load_prompt_template(template_name='value_investor_prompt.txt'):
+    """
+    Loads the system prompt from templates directory.
+    
+    Args:
+        template_name: Name of the template file to load. 
+                      Default: 'value_investor_prompt.txt' (specialized for financial analysis)
+                      Alternative: 'system_prompt.txt' (general Discord chat analysis)
+    """
     try:
         # Use centralized config path
-        template_path = os.path.join(ANALYSIS_TEMPLATES_DIR, 'system_prompt.txt')
+        template_path = os.path.join(ANALYSIS_TEMPLATES_DIR, template_name)
         with open(template_path, 'r', encoding='utf-8') as f:
             return f.read()
     except Exception as e:
-        print(f"[WARN] Could not load system_prompt.txt: {e}")
-        # Fallback template
-        return """
-        Analyze these Discord chat logs for {period_label} of {year}.
-        Output Language: {language}
-        Return ONLY valid JSON in this format:
-        {{
-            "executive_summary": "A short, engaging paragraph summarizing the main vibe and events of this period.",
-            "summary": ["bullet 1", "bullet 2", "bullet 3"],
-            "sentiment": "One Word Label",
-            "funniest_quote": {{ "text": "Quote text", "author": "Username" }},
-            "impactful_quote": {{ "text": "Quote text", "author": "Username" }}
-        }}
-        """
+        logger.warning(f"Could not load {template_name}: {e}. Trying fallback...")
+        
+        # Try the other template as fallback
+        fallback_name = 'system_prompt.txt' if template_name != 'system_prompt.txt' else 'value_investor_prompt.txt'
+        try:
+            fallback_path = os.path.join(ANALYSIS_TEMPLATES_DIR, fallback_name)
+            with open(fallback_path, 'r', encoding='utf-8') as f:
+                logger.info(f"Loaded fallback template: {fallback_name}")
+                return f.read()
+        except Exception as e2:
+            logger.error(f"Could not load fallback template {fallback_name}: {e2}")
+            # Final fallback: hardcoded basic template
+            return """
+            Analyze these Discord chat logs for {period_label}.
+            Output Language: {language}
+            Return ONLY valid JSON in this format:
+            {{
+                "executive_summary": "A short, engaging paragraph summarizing the main vibe and events of this period.",
+                "summary": ["bullet 1", "bullet 2", "bullet 3"],
+                "sentiment": "One Word Label",
+                "impactful_quote": {{ "text": "Quote text", "author": "Username" }}
+            }}
+            """
 
-def get_quarterly_insights(df, year=2025, target_quarter=None, language="Italian"):
+def get_quarterly_insights(df, year=None, target_quarter=None, language="Italian", force_single_period=False, period_label_override=None, model_type="free"):
     """
     Groups messages by Quarter (Q1, Q2, Q3, Q4) and gets insights from OpenRouter/LLM.
     Returns a dict: { 'Q1': {'summary': [], 'sentiment': '', ...}, ... }
+    
+    If force_single_period is True, ignores quarters/years and processes entire DF as one block.
     """
     if 'timestamp' not in df.columns:
         return {}
@@ -144,28 +232,56 @@ def get_quarterly_insights(df, year=2025, target_quarter=None, language="Italian
     if not pd.api.types.is_datetime64_any_dtype(df['timestamp']):
         df['timestamp'] = pd.to_datetime(df['timestamp'])
     
-    # Create an explicit copy to avoid SettingWithCopyWarning
-    df_year = df[df['timestamp'].dt.year == year].copy()
+    # Pre-filtering by year is only done if year is provided AND we're not in single period mode
+    if year and not force_single_period:
+        df_target = df[df['timestamp'].dt.year == year].copy()
+        if df_target.empty:
+            logger.warning(f"No data found for year {year}. Skipping AI analysis.")
+            return {}
+    else:
+        df_target = df.copy() # Use whatever is passed
     
-    if df_year.empty:
-        logger.warning(f"No data found for year {year}. Skipping AI analysis.")
-    # helper to identify quarter
-    df_year['quarter'] = df_year['timestamp'].dt.quarter
-    
-    # Load Prompt Template
+    if df_target.empty:
+         return {}
+
+    # Load Prompt Template (Default specialized)
     prompt_template = load_prompt_template()
-    
-    # Determine quarters to process
-    quarters_to_process = [target_quarter] if target_quarter else sorted(df_year['quarter'].unique())
     
     insights = {}
     
-    for q_idx in quarters_to_process:
-        quarter_data = df_year[df_year['quarter'] == q_idx]
+    # Define processing groups
+    if force_single_period:
+        # Just one group: the whole dataframe
+        # Dummy key for iteration
+        sorted_groups = [((0,0), df_target)]
+    else:
+        # helper to identify quarter
+        df_target['quarter'] = df_target['timestamp'].dt.quarter
+        df_target['year'] = df_target['timestamp'].dt.year
+        
+        start_year = df_target['year'].min()
+        end_year = df_target['year'].max()
+        multi_year = start_year != end_year
+        
+        if target_quarter:
+             df_target = df_target[df_target['quarter'] == target_quarter]
+             
+        # Get unique couples
+        groups = df_target.groupby(['year', 'quarter'])
+        # Sort groups by year, then quarter
+        sorted_groups = sorted(groups, key=lambda x: (x[0][0], x[0][1]))
+
+    for (y, q), quarter_data in sorted_groups:
         if quarter_data.empty:
             continue
             
-        quarter_label = f"Q{q_idx}"
+        if force_single_period:
+             quarter_label = period_label_override if period_label_override else "Analysis Period"
+        elif multi_year or year is None:
+             quarter_label = f"{y} Q{q}"
+        else:
+             quarter_label = f"Q{q}"
+        
         logger.info(f"Analyzer: Processing {quarter_label} ({len(quarter_data)} msgs)...")
         
         # --- Payload / Token Management ---
@@ -189,32 +305,59 @@ def get_quarterly_insights(df, year=2025, target_quarter=None, language="Italian
         )
         
         # Fill template (Using replace instead of format to avoid KeyError on JSON braces)
-        prompt = prompt_template.replace("{period_label}", quarter_label) \
-                                .replace("{year}", str(year)) \
-                                .replace("{language}", language)
+        # year_ctx = str(y) if not force_single_period else "the specific period"
         
-        response = summarize_text(text_blob, prompt)
+        prompt = prompt_template.replace("{language}", language) \
+                                .replace("{period_label}", quarter_label)
+
+        if force_single_period:
+            # Clean up the "of {year}" part if it exists, to avoid "Ultimi 3 mesi of the specific period"
+            # Try English pattern
+            prompt = prompt.replace(" of {year}", "")
+            # Try Italian pattern (in case of custom templates)
+            prompt = prompt.replace(" del {year}", "")
+            prompt = prompt.replace(" di {year}", "")
+            # Fallback for just the tag
+            prompt = prompt.replace("{year}", "")
+        else:
+            prompt = prompt.replace("{year}", str(y))
+        
+        response = summarize_text(text_blob, prompt, model_type=model_type)
+        
+        # Check for hard stop signal
+        if "Unavailable" in response:
+             logger.error("AI Analysis stopped due to API limits.")
+             break
+             
         time.sleep(5) # Modest buffer
         
-        # JSON Cleaning
+        # Enhanced JSON Cleaning
+        # 1. Strip Markdown
         clean_json = response.replace("```json", "").replace("```", "").strip()
+        
+        # 2. Extract JSON object using regex (find first { and last })
+        import re
+        json_match = re.search(r'(\{.*\})', clean_json, re.DOTALL)
+        if json_match:
+            clean_json = json_match.group(1)
         
         try:
             data = json.loads(clean_json)
             insights[quarter_label] = data
             logger.info(f"   -> Success! Analyzed {quarter_label}.")
         except json.JSONDecodeError:
-            logger.warning(f"   -> JSON Parse Failed for {quarter_label}.")
+            logger.warning(f"   -> JSON Parse Failed for {quarter_label}. Raw response length: {len(response)}")
+            # Fallback: Don't put "Analysis failed" in summary if we want to hide it
             insights[quarter_label] = {
-                "summary": ["Analysis failed to parse."],
+                "summary": [], # Empty summary helps hiding the section
                 "sentiment": "Unknown",
-                "funniest_quotes": [{"text": "N/A", "author": ""}],
-                "impactful_quote": {"text": "N/A", "author": ""}
+                "funniest_quotes": [],
+                "impactful_quote": {"text": "", "author": ""}
             }
             
     return insights
 
-def generate_yearly_summary(insights, year, language="Italian"):
+def generate_yearly_summary(insights, year, language="Italian", model_type="free"):
     """
     Synthesizes a high-level executive summary from the quarterly insights.
     Returns a string (markdown or plain text paragraph).
@@ -241,7 +384,7 @@ def generate_yearly_summary(insights, year, language="Italian"):
     Output directly in {language}. No JSON, just the text paragraph.
     """
     
-    return summarize_text(meta_text, prompt)
+    return summarize_text(meta_text, prompt, model_type=model_type)
 
 if __name__ == "__main__":
     # Allows detailed testing without running the full report

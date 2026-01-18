@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ channel_name }} - Report Annuale 2025</title>
+    <title>{{ channel_name }} - {{ report_title }}</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Plotly.js -->
-    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js" defer></script>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
     <style>
         body {
             background-color: #1e1e2e; /* Dark theme background */
@@ -48,7 +48,7 @@
     <!-- Title Section -->
     <header class="text-center mb-12">
         <h1 class="text-5xl font-bold mb-4 header-gradient">{{ channel_name }}</h1>
-        <p class="text-xl text-gray-400">Report Annuale 2025</p>
+        <p class="text-xl text-gray-400">{{ report_title }}</p>
         <p class="text-sm text-gray-500 mt-2">Generato il: {{ generation_date }}</p>
     </header>
 
@@ -72,6 +72,8 @@
             {% endif %}
 
             {% for quarter, data in quarterly_insights.items() %}
+            
+            {% if data.sentiment != "Unknown" %}
             <div class="border-b border-gray-700 pb-8 last:border-0 last:pb-0">
                 <div class="flex items-center justify-between mb-4">
                     <h3 class="text-2xl font-bold text-white">{{ quarter }}</h3>
@@ -80,45 +82,147 @@
                     </span>
                 </div>
                 
-                <!-- Quotes Grid -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                    <!-- Funniest Quotes -->
-                    <div class="bg-gray-800/50 p-4 rounded-xl border border-gray-700 relative overflow-hidden group hover:border-green-500/50 transition-colors">
-                        <div class="absolute top-0 right-0 p-2 opacity-10 text-6xl group-hover:opacity-20 transition-opacity">😂</div>
-                        <p class="text-xs text-green-400 uppercase font-bold mb-2 tracking-wider">LA SIMPATIA</p>
-                        
-                        <div class="space-y-4 relative z-10">
-                            {% if data.funniest_quotes %}
-                                {% for quote in data.funniest_quotes %}
-                                <div class="border-b border-gray-700/50 pb-2 last:border-0 last:pb-0">
-                                    <blockquote class="italic text-gray-300">"{{ quote.text }}"</blockquote>
-                                    <p class="text-right text-sm text-gray-500 mt-1 font-mono">@{{ quote.author }}</p>
-                                </div>
-                                {% endfor %}
-                            {% elif data.funniest_quote %}
-                                <div>
-                                    <blockquote class="italic text-gray-300">"{{ data.funniest_quote.text }}"</blockquote>
-                                    <p class="text-right text-sm text-gray-500 mt-1 font-mono">@{{ data.funniest_quote.author }}</p>
-                                </div>
-                            {% endif %}
-                        </div>
-                    </div>
+                <!-- Value Investor Sections -->
+                {% if data.tools_and_resources or data.company_analysis or data.macro_scenario or data.portfolio_strategies or data.valuation_analysis or data.risks_and_contrarian or data.flash_insights %}
+                <div class="space-y-6 mb-6">
                     
-                    <!-- Impactful Quote -->
-                    <div class="bg-gray-800/50 p-4 rounded-xl border border-gray-700 relative overflow-hidden group hover:border-red-500/50 transition-colors">
-                        <div class="absolute top-0 right-0 p-2 opacity-10 text-6xl group-hover:opacity-20 transition-opacity">🔥</div>
-                        <p class="text-xs text-red-400 uppercase font-bold mb-2 tracking-wider">LA SAGGEZZA</p>
-                        <blockquote class="italic text-gray-300 relative z-10">"{{ data.impactful_quote.text }}"</blockquote>
-                        <p class="text-right text-sm text-gray-500 mt-2 font-mono">@{{ data.impactful_quote.author }}</p>
+                    <!-- Tools & Resources -->
+                    {% if data.tools_and_resources and data.tools_and_resources|length > 0 %}
+                    <div class="bg-gray-800/50 p-4 rounded-xl border border-gray-700">
+                        <p class="text-xs text-blue-400 uppercase font-bold mb-3 tracking-wider">🛠️ TOOL & RISORSE</p>
+                        <ul class="space-y-3 text-gray-300 ml-4 border-l-2 border-blue-700 pl-4">
+                            {% for item in data.tools_and_resources %}
+                            <li class="pl-1 text-sm leading-relaxed">{{ item | md_bold | safe }}</li>
+                            {% endfor %}
+                        </ul>
                     </div>
-                </div>
+                    {% endif %}
+                    
+                    <!-- Company Analysis -->
+                    {% if data.company_analysis and data.company_analysis|length > 0 %}
+                    <div class="bg-gray-800/50 p-4 rounded-xl border border-gray-700">
+                        <p class="text-xs text-green-400 uppercase font-bold mb-3 tracking-wider">📊 ANALISI SOCIETARIA</p>
+                        <ul class="space-y-3 text-gray-300 ml-4 border-l-2 border-green-700 pl-4">
+                            {% for item in data.company_analysis %}
+                            <li class="pl-1 text-sm leading-relaxed">{{ item | md_bold | safe }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Macro Scenario -->
+                    {% if data.macro_scenario and data.macro_scenario|length > 0 %}
+                    <div class="bg-gray-800/50 p-4 rounded-xl border border-gray-700">
+                        <p class="text-xs text-cyan-400 uppercase font-bold mb-3 tracking-wider">🌍 SCENARIO MACRO & RISCHIO PAESE</p>
+                        <ul class="space-y-3 text-gray-300 ml-4 border-l-2 border-cyan-700 pl-4">
+                            {% for item in data.macro_scenario %}
+                            <li class="pl-1 text-sm leading-relaxed">{{ item | md_bold | safe }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Portfolio Strategies -->
+                    {% if data.portfolio_strategies and data.portfolio_strategies|length > 0 %}
+                    <div class="bg-gray-800/50 p-4 rounded-xl border border-gray-700">
+                        <p class="text-xs text-purple-400 uppercase font-bold mb-3 tracking-wider">💡 STRATEGIA DI PORTAFOGLIO & TESI</p>
+                        <ul class="space-y-3 text-gray-300 ml-4 border-l-2 border-purple-700 pl-4">
+                            {% for item in data.portfolio_strategies %}
+                            <li class="pl-1 text-sm leading-relaxed">{{ item | md_bold | safe }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
 
-                <ul class="space-y-2 text-gray-300 ml-4 border-l-2 border-gray-700 pl-4">
-                    {% for point in data.summary %}
-                    <li class="pl-1">{{ point }}</li>
-                    {% endfor %}
-                </ul>
+                    <!-- Valuation & Sentiment -->
+                    {% if data.valuation_analysis and data.valuation_analysis|length > 0 %}
+                    <div class="bg-gray-800/50 p-4 rounded-xl border border-gray-700">
+                        <p class="text-xs text-orange-400 uppercase font-bold mb-3 tracking-wider">⚖️ SENTIMENT & VALUTAZIONE</p>
+                        <ul class="space-y-3 text-gray-300 ml-4 border-l-2 border-orange-700 pl-4">
+                            {% for item in data.valuation_analysis %}
+                            <li class="pl-1 text-sm leading-relaxed">{{ item | md_bold | safe }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+
+                     <!-- Risks & Contrarian -->
+                    {% if data.risks_and_contrarian and data.risks_and_contrarian|length > 0 %}
+                    <div class="bg-gray-800/50 p-4 rounded-xl border border-gray-700">
+                        <p class="text-xs text-red-500 uppercase font-bold mb-3 tracking-wider">⚠️ RISCHI & OPINIONI CONTRARIAN</p>
+                        <ul class="space-y-3 text-gray-300 ml-4 border-l-2 border-red-700 pl-4">
+                            {% for item in data.risks_and_contrarian %}
+                            <li class="pl-1 text-sm leading-relaxed">{{ item | md_bold | safe }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Flash Insights -->
+                    {% if data.flash_insights and data.flash_insights|length > 0 %}
+                    <div class="bg-gray-800/50 p-4 rounded-xl border border-gray-700">
+                        <p class="text-xs text-yellow-400 uppercase font-bold mb-3 tracking-wider">📌 INSIGHT FLASH</p>
+                        <ul class="space-y-3 text-gray-300 ml-4 border-l-2 border-yellow-700 pl-4">
+                            {% for item in data.flash_insights %}
+                            <li class="pl-1 text-sm leading-relaxed">{{ item | md_bold | safe }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+                    
+                </div>
+                {% endif %}
+                
+                <!-- Legacy/Fallback: Old Format Support (summary + quotes) -->
+                {% if data.summary and data.summary|length > 0 %}
+                <div class="mb-6">
+                    <!-- Quotes Grid -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        <!-- Funniest Quotes -->
+                        {% if data.funniest_quotes or data.funniest_quote %}
+                        <div class="bg-gray-800/50 p-4 rounded-xl border border-gray-700 relative overflow-hidden group hover:border-green-500/50 transition-colors">
+                            <div class="absolute top-0 right-0 p-2 opacity-10 text-6xl group-hover:opacity-20 transition-opacity">😂</div>
+                            <p class="text-xs text-green-400 uppercase font-bold mb-2 tracking-wider">LA SIMPATIA</p>
+                            
+                            <div class="space-y-4 relative z-10">
+                                {% if data.funniest_quotes %}
+                                    {% for quote in data.funniest_quotes %}
+                                    <div class="border-b border-gray-700/50 pb-2 last:border-0 last:pb-0">
+                                        <blockquote class="italic text-gray-300">"{{ quote.text }}"</blockquote>
+                                        <p class="text-right text-sm text-gray-500 mt-1 font-mono">@{{ quote.author }}</p>
+                                    </div>
+                                    {% endfor %}
+                                {% elif data.funniest_quote %}
+                                    <div>
+                                        <blockquote class="italic text-gray-300">"{{ data.funniest_quote.text }}"</blockquote>
+                                        <p class="text-right text-sm text-gray-500 mt-1 font-mono">@{{ data.funniest_quote.author }}</p>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endif %}
+                        
+                        <!-- Impactful Quote -->
+                        {% if data.impactful_quote and data.impactful_quote.text %}
+                        <div class="bg-gray-800/50 p-4 rounded-xl border border-gray-700 relative overflow-hidden group hover:border-red-500/50 transition-colors">
+                            <div class="absolute top-0 right-0 p-2 opacity-10 text-6xl group-hover:opacity-20 transition-opacity">🔥</div>
+                            <p class="text-xs text-red-400 uppercase font-bold mb-2 tracking-wider">LA SAGGEZZA</p>
+                            <blockquote class="italic text-gray-300 relative z-10">"{{ data.impactful_quote.text }}"</blockquote>
+                            <p class="text-right text-sm text-gray-500 mt-2 font-mono">@{{ data.impactful_quote.author }}</p>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <ul class="space-y-2 text-gray-300 ml-4 border-l-2 border-gray-700 pl-4">
+                        {% for point in data.summary %}
+                        <li class="pl-1">{{ point }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
             </div>
+            {% endif %}
+            
             {% endfor %}
         </section>
         {% endif %}

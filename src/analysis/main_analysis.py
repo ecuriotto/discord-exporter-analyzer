@@ -155,11 +155,30 @@ def main():
     parser.add_argument("--quarter", type=str, help="Specific quarter to analyze (e.g., Q1)")
     parser.add_argument("--lang", default="Italian", help="Language for AI output (default: Italian)")
     parser.add_argument("--input", default=None, help="Specific input .txt file path")
+    parser.add_argument("--months", type=int, help="Analyze the last X months from today (e.g. 6)")
+    parser.add_argument("--ytd", action="store_true", help="Analyze Year-To-Date (Current Year)")
+    parser.add_argument("--model-mode", default="free", choices=["free", "pay"], help="Choose between free or pay models")
     args = parser.parse_args()
 
-    # Determine target year (Default: Previous Year)
-    target_year = args.year if args.year else (datetime.now().year - 1)
-    logger.info(f"Target Year for Analysis: {target_year}")
+    # Determine filter mode & target parameters
+    target_year = None
+    target_quarter = None
+    filter_mode = "year_quarter" # default
+    report_suffix = ""
+
+    if args.months:
+        filter_mode = "months"
+        report_suffix = f"_Last{args.months}Months"
+        logger.info(f"Analysis Mode: Last {args.months} Months")
+    elif args.ytd:
+        filter_mode = "ytd"
+        target_year = datetime.now().year
+        report_suffix = f"_YTD_{target_year}"
+        logger.info(f"Analysis Mode: YTD ({target_year})")
+    else:
+         # Default Year/Quarter
+         target_year = args.year if args.year else (datetime.now().year - 1)
+         logger.info(f"Analysis Mode: Specific Year ({target_year})")
 
     if not os.path.exists(OUTPUT_DIR):
         os.makedirs(OUTPUT_DIR)
@@ -200,34 +219,49 @@ def main():
     if df.empty:
         logger.warning("DataFrame is empty. Check parsing logic.")
     else:
-        # Filter for the target year
+        # Filter logic
         df['timestamp'] = pd.to_datetime(df['timestamp'])
         total_msgs = len(df)
-        df = df[df['timestamp'].dt.year == target_year]
         
-        # Filter for Quarter if specified
-        target_quarter = None
-        if args.quarter:
-            q_clean = args.quarter.strip().upper()
-            if q_clean.startswith('Q') and q_clean[1].isdigit():
-                target_quarter = int(q_clean[1])
-            elif q_clean.isdigit():
-                target_quarter = int(q_clean)
-                
-            if target_quarter and 1 <= target_quarter <= 4:
-                print(f"[INFO] Filtering for Quarter {target_quarter}...")
-                df = df[df['timestamp'].dt.quarter == target_quarter]
+        if filter_mode == "months":
+             from dateutil.relativedelta import relativedelta
+             cutoff_date = datetime.now() - relativedelta(months=args.months)
+             # Basic filter
+             df = df[df['timestamp'] >= cutoff_date]
+             
+        elif filter_mode == "ytd":
+             df = df[df['timestamp'].dt.year == target_year]
+             
+        else:
+            # Year / Quarter Mode
+            df = df[df['timestamp'].dt.year == target_year]
+            
+            # Filter for Quarter if specified
+            if args.quarter:
+                q_clean = args.quarter.strip().upper()
+                if q_clean.startswith('Q') and q_clean[1].isdigit():
+                    target_quarter = int(q_clean[1])
+                elif q_clean.isdigit():
+                    target_quarter = int(q_clean)
+                    
+                if target_quarter and 1 <= target_quarter <= 4:
+                    print(f"[INFO] Filtering for Quarter {target_quarter}...")
+                    df = df[df['timestamp'].dt.quarter == target_quarter]
+                    report_suffix = f"_{target_year}_Q{target_quarter}"
+                else:
+                     print(f"[WARN] Invalid quarter format '{args.quarter}'. Ignoring.")
+                     target_quarter = None
+                     report_suffix = f"_{target_year}"
             else:
-                 print(f"[WARN] Invalid quarter format '{args.quarter}'. Ignoring.")
-                 target_quarter = None
+                 report_suffix = f"_{target_year}"
 
         filtered_msgs = len(df)
         
         print(f"[INFO] Parsed {total_msgs} total messages.")
-        print(f"[INFO] Keeping {filtered_msgs} messages for Year {target_year}" + (f" Q{target_quarter}" if target_quarter else "") + ".")
+        print(f"[INFO] Keeping {filtered_msgs} messages.")
         
         if df.empty:
-            print(f"[WARN] No messages found for year {target_year}! Charts/AI will be empty.")
+            print(f"[WARN] No messages found for specified period! Charts/AI will be empty.")
 
     # 5. Generate Visuals
     logger.info("Generating charts...")
@@ -246,10 +280,45 @@ def main():
 
     if not df.empty:
         try:
-            # We already have target_year from args/default
-            # Pass target_quarter if set
-            quarterly_insights = get_quarterly_insights(df, year=target_year, target_quarter=target_quarter, language=args.lang)
-            
+            # Determine label for summary
+            if filter_mode == "months":
+                # Localize label based on requested language
+                if args.lang and args.lang.lower().startswith("it"):
+                     p_label = f"Ultimi {args.months} Mesi"
+                else:
+                     p_label = f"Last {args.months} Months"
+                     
+                summary_label = p_label
+                # Process as SINGLE PERIOD
+                quarterly_insights = get_quarterly_insights(
+                    df, 
+                    year=None, 
+                    target_quarter=None, 
+                    language=args.lang, 
+                    force_single_period=True, 
+                    period_label_override=p_label,
+                    model_type=args.model_mode
+                )
+            elif filter_mode == "ytd":
+                summary_label = f"YTD {target_year}"
+                quarterly_insights = get_quarterly_insights(
+                    df, 
+                    year=None, 
+                    target_quarter=None, 
+                    language=args.lang,
+                    model_type=args.model_mode
+                )
+            else:
+                summary_label = str(target_year)
+                # We already have filtered df, so we pass year=None to use data as-is
+                quarterly_insights = get_quarterly_insights(
+                    df, 
+                    year=None, 
+                    target_quarter=target_quarter, 
+                    language=args.lang,
+                    model_type=args.model_mode
+                )
+
             # Generate Executive Summary if we have any output
             if quarterly_insights:
                  logger.debug(f"AI Insights keys: {list(quarterly_insights.keys())}")
@@ -264,10 +333,10 @@ def main():
                      else:
                          # Fallback if old prompt or missing field
                          logger.info(f"Single quarter detected, but 'executive_summary' missing. Generating fallback.")
-                         yearly_summary_text = generate_yearly_summary(quarterly_insights, target_year, args.lang)
+                         yearly_summary_text = generate_yearly_summary(quarterly_insights, summary_label, args.lang, model_type=args.model_mode)
                  else:
                      # Multiple quarters: We must synthesize them
-                     yearly_summary_text = generate_yearly_summary(quarterly_insights, target_year, args.lang)
+                     yearly_summary_text = generate_yearly_summary(quarterly_insights, summary_label, args.lang, model_type=args.model_mode)
             else:
                  logger.warning("AI Insights dictionary is EMPTY. Skipping AI summary generation.")
         except Exception as e:
@@ -280,10 +349,37 @@ def main():
     # 6. Render Report
     logger.info("Rendering HTML report...")
     env = Environment(loader=FileSystemLoader(TEMPLATE_DIR))
+    
+    # Custom filter to convert Markdown bold (**text**) to HTML and newlines
+    def format_md_bold(text):
+        if not isinstance(text, str): return text
+        # 1. Replace **text** with <strong>text</strong>
+        text = re.sub(r'\*\*(.*?)\*\*', r'<strong class="text-white font-bold">\1</strong>', text)
+        # 2. Replace newlines with <br> to allow spacing within a single block
+        text = text.replace('\n', '<br>')
+        # 3. Handle basic sub-bullets (start of line - )
+        text = re.sub(r'(?:^|<br>)-\s', r'<br>• ', text)
+        return text
+        
+    env.filters['md_bold'] = format_md_bold
+    
     template = env.get_template('report_template.html')
     
+    # Construct Report Title
+    if filter_mode == "months":
+        report_title = f"Report Ultimi {args.months} Mesi"
+    elif filter_mode == "ytd":
+        report_title = f"Report YTD {target_year}"
+    else:
+        # Standard Year/Quarter
+        if target_quarter:
+             report_title = f"Report {target_year} Q{target_quarter}"
+        else:
+             report_title = f"Report Annuale {target_year}"
+
     html_content = template.render(
         channel_name=channel_name,
+        report_title=report_title,
         generation_date=datetime.now().strftime("%d %B %Y"),
         top_contributors_chart=top_contributors_html,
         activity_heatmap=activity_heatmap_html,
@@ -301,9 +397,7 @@ def main():
     safe_name = "".join([c for c in channel_name if c.isalnum() or c in (' ', '-', '_')]).strip()
     if not safe_name: safe_name = f"Channel_{channel_id}"
     
-    # Use the target_year for the filename
-    suffix = f"_Q{target_quarter}" if target_quarter else ""
-    output_filename = f"{safe_name}_Report_{target_year}{suffix}.html"
+    output_filename = f"{safe_name}_Report{report_suffix}.html"
     
     # Organize in subfolders (using centralized config paths)
     # OUTPUT_HTML_DIR, OUTPUT_PDF_DIR are imported from config

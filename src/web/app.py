@@ -263,9 +263,12 @@ class ExtractionRequest(BaseModel):
 
 class AnalysisRequest(BaseModel):
     file_path: str
-    year: int
+    year: int | None = None
     quarter: str | None = None
+    months: int | None = None
+    ytd: bool = False
     language: str = "it"
+    model_mode: str = "free"
 
 
 def clean_log(text):
@@ -353,15 +356,24 @@ async def trigger_extraction(request: ExtractionRequest, background_tasks: Backg
 
     return {"status": "success", "message": f"Extraction started for channel {channel_id}", "job_id": job_id}
 
-def run_analysis(job_id: str, file_path: str, year: int, quarter: str, language: str):
+def run_analysis(job_id: str, file_path: str, language: str, year: int = None, quarter: str = None, months: int = None, ytd: bool = False, model_mode: str = "free"):
     """
     Runs the analysis script in a subprocess with real-time logging.
     """
     script_path = os.path.join(BASE_DIR, "src", "analysis", "main_analysis.py")
     
-    cmd = [sys.executable, "-u", script_path, "--input", file_path, "--year", str(year), "--lang", language]
-    if quarter:
-        cmd.extend(["--quarter", quarter])
+    cmd = [sys.executable, "-u", script_path, "--input", file_path, "--lang", language, "--model-mode", model_mode]
+    
+    if months:
+         cmd.extend(["--months", str(months)])
+    elif ytd:
+         cmd.append("--ytd")
+    else:
+         # Default Year/Quarter Mode
+         if year:
+            cmd.extend(["--year", str(year)])
+         if quarter:
+            cmd.extend(["--quarter", quarter])
     
     # Update status to running
     JOBS[job_id]["status"] = "running"
@@ -450,13 +462,17 @@ async def trigger_analysis(request: AnalysisRequest, background_tasks: Backgroun
         "created_at": datetime.now().isoformat()
     }
     
+    # Start Background Task
     background_tasks.add_task(
         run_analysis, 
         job_id, 
         request.file_path, 
-        request.year, 
-        request.quarter, 
-        request.language
+        request.language,
+        request.year,
+        request.quarter,
+        request.months,
+        request.ytd,
+        request.model_mode
     )
 
     return {

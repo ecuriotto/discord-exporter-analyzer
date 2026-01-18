@@ -197,27 +197,67 @@
                             {% endfor %}
                         </select>
 
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                            <div>
-                                <label for="analysis-year">Year</label>
-                                <input type="text" id="analysis-year" value="2025" required>
-                            </div>
-                            <div>
-                                <label for="analysis-quarter">Quarter</label>
-                                <select id="analysis-quarter">
-                                    <option value="">Full Year</option>
-                                    <option value="Q1">Q1 (Jan-Mar)</option>
-                                    <option value="Q2">Q2 (Apr-Jun)</option>
-                                    <option value="Q3">Q3 (Jul-Sep)</option>
-                                    <option value="Q4" selected>Q4 (Oct-Dec)</option>
-                                </select>
+                        <!-- Time Filter Mode Selection -->
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 8px;">Time Filter Mode</label>
+                            <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+                                <label style="font-weight: normal; display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                                    <input type="radio" name="time-mode" value="year" checked onchange="toggleTimeInputs()"> Specific Year
+                                </label>
+                                <label style="font-weight: normal; display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                                    <input type="radio" name="time-mode" value="months" onchange="toggleTimeInputs()"> Last X Months
+                                </label>
+                                <label style="font-weight: normal; display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                                    <input type="radio" name="time-mode" value="ytd" onchange="toggleTimeInputs()"> Year To Date (YTD)
+                                </label>
                             </div>
                         </div>
 
-                        <label for="analysis-lang">Language</label>
+                        <!-- Mode: Specific Year -->
+                        <div id="mode-year" class="mode-input">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                <div>
+                                    <label for="analysis-year">Year</label>
+                                    <input type="text" id="analysis-year" value="2025">
+                                </div>
+                                <div>
+                                    <label for="analysis-quarter">Quarter</label>
+                                    <select id="analysis-quarter">
+                                        <option value="">Full Year</option>
+                                        <option value="Q1">Q1 (Jan-Mar)</option>
+                                        <option value="Q2">Q2 (Apr-Jun)</option>
+                                        <option value="Q3">Q3 (Jul-Sep)</option>
+                                        <option value="Q4" selected>Q4 (Oct-Dec)</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Mode: Last X Months -->
+                        <div id="mode-months" class="mode-input" style="display: none;">
+                            <label for="analysis-months">Number of Months</label>
+                            <input type="number" id="analysis-months" value="6" min="1" max="60">
+                            <p class="meta" style="margin-top: -10px;">Analyze data from the last X months relative to today.</p>
+                        </div>
+
+                        <!-- Mode: YTD -->
+                        <div id="mode-ytd" class="mode-input" style="display: none;">
+                            <p style="background: rgba(88, 101, 242, 0.1); padding: 10px; border-radius: 4px; border-left: 3px solid #5865F2;">
+                                Analyzes all data from <strong>January 1st</strong> of the current year until today.
+                            </p>
+                        </div>
+
+                        <label for="analysis-lang" style="margin-top: 15px;">Language</label>
                         <select id="analysis-lang">
                             <option value="it" selected>Italian</option>
                             <option value="en">English</option>
+                        </select>
+
+                        <!-- PRO: Model Mode Selection -->
+                        <label for="analysis-model-mode" style="margin-top: 15px;">Model Efficiency Mode</label>
+                        <select id="analysis-model-mode" style="background: #2f3136; border: 1px solid #202225; color: white; padding: 10px; border-radius: 4px; width: 100%;">
+                            <option value="free" selected>Free (Rotation & Fallback)</option>
+                            <option value="pay">Pay (High Performance / DeepSeek / Claude)</option>
                         </select>
 
                         <div style="margin-top: 20px;">
@@ -502,13 +542,22 @@
             }, 1000); 
         }
 
+        function toggleTimeInputs() {
+            const mode = document.querySelector('input[name="time-mode"]:checked').value;
+            document.getElementById('mode-year').style.display = (mode === 'year') ? 'block' : 'none';
+            document.getElementById('mode-months').style.display = (mode === 'months') ? 'block' : 'none';
+            document.getElementById('mode-ytd').style.display = (mode === 'ytd') ? 'block' : 'none';
+        }
+
         // Analysis Logic
         async function handleAnalysis(event) {
             event.preventDefault();
             const fileSelect = document.getElementById('analysis-file-select');
-            const yearInput = document.getElementById('analysis-year');
-            const quarterSelect = document.getElementById('analysis-quarter');
             const langSelect = document.getElementById('analysis-lang');
+            const modelModeSelect = document.getElementById('analysis-model-mode');
+            
+            // Get Mode
+            const mode = document.querySelector('input[name="time-mode"]:checked').value;
             
             const btn = document.getElementById('analyze-btn');
             const errorBox = document.getElementById('analysis-error');
@@ -518,10 +567,30 @@
 
             const payload = {
                 file_path: fileSelect.value,
-                year: parseInt(yearInput.value),
-                quarter: quarterSelect.value || null,
-                language: langSelect.value
+                language: langSelect.value,
+                model_mode: modelModeSelect ? modelModeSelect.value : "free",
+                ytd: false
             };
+            
+            if (mode === 'year') {
+                const yearInput = document.getElementById('analysis-year');
+                const quarterSelect = document.getElementById('analysis-quarter');
+                payload.year = parseInt(yearInput.value);
+                payload.quarter = quarterSelect.value || null;
+                if(!payload.year) {
+                    alert("Please enter a valid year.");
+                    return;
+                }
+            } else if (mode === 'months') {
+                const monthsInput = document.getElementById('analysis-months');
+                payload.months = parseInt(monthsInput.value);
+                if(!payload.months || payload.months < 1) {
+                    alert("Please enter a valid number of months.");
+                    return;
+                }
+            } else if (mode === 'ytd') {
+                payload.ytd = true;
+            }
 
             // Reset State
             btn.disabled = true;
@@ -531,7 +600,12 @@
             
             // Show Log
             logBox.style.display = 'block';
-            logBox.innerHTML = `<span style="color: #00b0f4;">> Starting analysis for year ${payload.year}...</span>`;
+            let msg = `> Starting analysis`;
+            if (mode === 'year') msg += ` for ${payload.year}`;
+            else if (mode === 'months') msg += ` for last ${payload.months} months`;
+            else if (mode === 'ytd') msg += ` (YTD)`;
+            
+            logBox.innerHTML = `<span style="color: #00b0f4;">${msg}...</span>`;
 
             try {
                 const response = await fetch('/api/analyze', {
