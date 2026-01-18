@@ -14,6 +14,9 @@ import glob
 import re
 from datetime import datetime
 
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+
 # Import centralized configuration
 from src.config import (
     BASE_DIR, 
@@ -22,7 +25,8 @@ from src.config import (
     WEB_TEMPLATES_DIR as TEMPLATES_DIR, 
     DISCORD_TOKEN_FILE as TOKEN_FILE, 
     CLI_PATH, 
-    CHANNEL_NAMES_FILE as CACHE_FILE
+    CHANNEL_NAMES_FILE as CACHE_FILE,
+    CHANNELS_CACHE_FILE
 )
 from src.logger import setup_logger
 
@@ -30,6 +34,9 @@ logger = setup_logger("web_app")
 
 # In-memory Job Store
 JOBS = {}
+
+# Thread Pool for blocking CLI operations
+cli_executor = ThreadPoolExecutor(max_workers=3)
 
 app = FastAPI(title="Discord Analytics Dashboard")
 
@@ -143,81 +150,228 @@ def get_discord_token():
     with open(TOKEN_FILE, 'r') as f:
         return f.read().strip()
 
-def run_cli_command(args):
-    """Run a DiscordChatExporter CLI command and return stdout lines."""
+def _run_cli_command_sync(args, timeout=60):
+    """
+    Blocking helper to run CLI commands safely.
+    Includes timeout to prevent hanging.
+    """
     token = get_discord_token()
     if not token:
         raise Exception("Token not found")
         
     full_cmd = [CLI_PATH] + args + ["--token", token]
     
-    # Run command
-    # Using 'dotnet' prefix might be needed on some systems, 
-    # but based on file listing 'DiscordChatExporter.Cli' seems executable directly or via dotnet.
-    # The file listing showed 'DiscordChatExporter.Cli' as a file, likely the binary script.
-    # If it fails, we might need to fallback to 'dotnet DiscordChatExporter.Cli.dll'
-    
     try:
+        # Check if direct executable or needs dotnet
+        # If CLI_PATH is a dll or script logic
+        # Usually full_cmd is fine if CLI_PATH is executable
+        
         process = subprocess.run(
             full_cmd,
             capture_output=True,
-            text=True
+            text=True,
+            timeout=timeout
         )
+        
+        # If execution failed (e.g. not executable or wrong format), try dotnet fallback
+        if process.returncode != 0:
+             # Heuristic: if stderr mentions "cannot execute binary file" or similar, or just try dotnet
+             # Or if raw command failed.
+             # We can just try dotnet blindly if returncode != 0
+             
+             dll_path = f"{CLI_PATH}.dll"
+             # If we haven't tried dotnet yet (check cmd[0])
+             if "dotnet" not in full_cmd and os.path.exists(dll_path):
+                 full_cmd = ["dotnet", dll_path] + args + ["--token", token]
+                 process = subprocess.run(
+                    full_cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout
+                 )
+
         if process.returncode != 0:
             raise Exception(f"CLI Error: {process.stderr}")
+            
         return process.stdout.strip().splitlines()
+        
+    except subprocess.TimeoutExpired:
+        raise Exception(f"CLI timed out after {timeout} seconds")
     except Exception as e:
-        # Fallback for dotnet execution if direct execution fails
-        # Assumes dll is in same dir
-        dll_path = f"{CLI_PATH}.dll"
-        if os.path.exists(dll_path):
-             full_cmd = ["dotnet", dll_path] + args + ["--token", token]
-             process = subprocess.run(
-                full_cmd,
-                capture_output=True,
-                text=True
-             )
-             if process.returncode != 0:
-                raise Exception(f"CLI Error (Dotnet): {process.stderr}")
-             return process.stdout.strip().splitlines()
         raise e
+
+async def run_cli_command(args, timeout=60):
+    """
+    Run CLI command asynchronously in thread pool to avoid blocking the event loop.
+    """
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = asyncio.get_event_loop()
+    
+    # Run in thread pool
+    result = await loop.run_in_executor(cli_executor, _run_cli_command_sync, args, timeout)
+    return result
 
 def parse_cli_list(lines):
     """Parse 'ID | Name' lines into a list of dicts."""
     items = []
+    
+    # Debug logging
+    if asyncio.iscoroutine(lines):
+        logger.error("parse_cli_list received a coroutine! This shouldn't happen.")
+        # We can't fix it here easily without await, but logging it confirms the issue.
+    
+    # Convert/validate lines
+    if not isinstance(lines, list):
+         logger.error(f"parse_cli_list expected list, got {type(lines)}")
+         return []
+         
     for line in lines:
         if "|" in line:
             parts = line.split("|", 1)
-            items.append({
-                "id": parts[0].strip(),
-                "name": parts[1].strip()
-            })
+            raw_id = parts[0].strip()
+            # Clean ID: Remove '*' markers or other CLI artifacts
+            clean_id = "".join(filter(str.isdigit, raw_id))
+            
+            if clean_id:
+                items.append({
+                    "id": clean_id,
+                    "name": parts[1].strip()
+                })
     return items
 
 @app.get("/api/discord/guilds")
 async def get_guilds():
     """Fetch list of guilds (servers)."""
     try:
-        lines = run_cli_command(["guilds"])
+        logger.info("Fetching guilds...")
+        lines = await run_cli_command(["guilds"], timeout=120)
+        
+        if asyncio.iscoroutine(lines):
+             logger.error("get_guilds: lines is coroutine after await!")
+             lines = await lines
+             
         guilds = parse_cli_list(lines)
         return {"status": "success", "data": guilds}
     except Exception as e:
-        logger.error(f"Error fetching guilds: {e}")
+        logger.error(f"Error fetching guilds: {e}", exc_info=True)
         return {"status": "error", "message": str(e)}
 
+def load_channels_cache():
+    if os.path.exists(CHANNELS_CACHE_FILE):
+        try:
+            with open(CHANNELS_CACHE_FILE, 'r') as f:
+                return json.load(f)
+        except:
+            return {}
+    return {}
+
 @app.get("/api/discord/channels/{guild_id}")
-async def get_channels(guild_id: str):
-    """Fetch channels for a specific guild (or DMs)."""
+async def get_channels(guild_id: str, include_threads: bool = False, force_refresh: bool = False):
+    """
+    Fetch channels for a specific guild (or DMs).
+    Order of preference:
+    1. Cache (if exists and not forced refresh)
+    2. Fast CLI Fetch (no threads) if not explicitly requested threads
+    3. Slow CLI Fetch (with threads) if explicitly requested or forced
+    """
     try:
+        logger.info(f"Fetching channels for {guild_id} (Threads: {include_threads}, Force: {force_refresh})")
+        
+        # 1. Try Cache
+        if not force_refresh:
+            cache = load_channels_cache()
+            if guild_id in cache:
+                logger.info(f"Returning cached channels for {guild_id}")
+                return {"status": "success", "data": cache[guild_id], "cached": True}
+
+        # 2. CLI Fetch
         if guild_id == "0":
-            lines = run_cli_command(["dm"])
+            lines = await run_cli_command(["dm"], timeout=120)
         else:
-            lines = run_cli_command(["channels", "--guild", guild_id])
+            args = ["channels", "--guild", guild_id]
             
+            # Use a longer timeout if threads are requested
+            timeout = 120
+            if include_threads or force_refresh:
+                # If force refresh, we generally want threads too, or should we assume full update?
+                # The user intent "Refresh Cache" implies getting everything.
+                # So if force_refresh is True, we enforce threads.
+                args.extend(["--include-threads", "true"])
+                timeout = 600 # 10 minutes for very large servers
+            
+            lines = await run_cli_command(args, timeout=timeout)
+            
+        if asyncio.iscoroutine(lines):
+             lines = await lines
+
         channels = parse_cli_list(lines)
-        return {"status": "success", "data": channels}
+        return {"status": "success", "data": channels, "cached": False}
     except Exception as e:
+         logger.error(f"Failed to load channels for guild {guild_id}: {e}", exc_info=True)
          return {"status": "error", "message": str(e)}
+
+class CacheUpdateRequest(BaseModel):
+    guild_id: str
+
+def run_cache_update(job_id: str, guild_id: str):
+    """
+    Runs the cache update script in a subprocess.
+    """
+    script_path = os.path.join(BASE_DIR, "src", "extraction", "update_cache.py")
+    cmd = [sys.executable, "-u", script_path, "--guild", guild_id]
+    
+    JOBS[job_id]["status"] = "running"
+    JOBS[job_id]["log"].append(f"Starting cache update for guild {guild_id}...")
+    
+    try:
+        process = subprocess.Popen(
+            cmd, 
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT, 
+            text=True, 
+            cwd=BASE_DIR,
+            bufsize=1, 
+            universal_newlines=True
+        )
+        
+        for line in process.stdout:
+            cleaned = clean_log(line)
+            if cleaned:
+                 JOBS[job_id]["log"].append(cleaned)
+        
+        process.wait()
+            
+        if process.returncode == 0:
+            JOBS[job_id]["status"] = "completed"
+            JOBS[job_id]["message"] = "Cache updated successfully."
+        else:
+            JOBS[job_id]["status"] = "failed"
+            JOBS[job_id]["error"] = f"Process exited with code {process.returncode}"
+            
+    except Exception as e:
+        JOBS[job_id]["status"] = "failed"
+        JOBS[job_id]["error"] = str(e)
+        JOBS[job_id]["log"].append(f"Exception: {str(e)}")
+
+@app.post("/api/discord/refresh-cache")
+async def refresh_cache(request: CacheUpdateRequest, background_tasks: BackgroundTasks):
+    """Trigger background job to refresh channel cache (incl. threads)."""
+    job_id = str(uuid.uuid4())
+    
+    JOBS[job_id] = {
+        "id": job_id,
+        "type": "cache_update",
+        "guild_id": request.guild_id,
+        "status": "pending",
+        "log": [],
+        "created_at": datetime.now().isoformat()
+    }
+    
+    background_tasks.add_task(run_cache_update, job_id, request.guild_id)
+    return {"status": "success", "job_id": job_id, "message": "Cache update started"}
+
 
 # Ensure Output Dir exists (handled in config.py, but good to keep locally if needed for mounting logic fallback)
 # But since we use config.py, we trust it creates folders.
@@ -332,11 +486,12 @@ async def trigger_extraction(request: ExtractionRequest, background_tasks: Backg
     """
     Trigger the extraction script in the background.
     """
-    channel_id = request.channel_id
+    channel_id = request.channel_id.strip() # Ensure valid format
     
     # Security Check: Channel ID must be numeric
     if not channel_id.isdigit():
-        return {"status": "error", "message": "Invalid Channel ID. Must be numeric."}
+        logger.error(f"Invalid Channel ID received: '{channel_id}'")
+        return {"status": "error", "message": f"Invalid Channel ID: '{channel_id}'. Must be numeric."}
 
     job_id = str(uuid.uuid4())
     

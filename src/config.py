@@ -29,14 +29,19 @@ CLI_PATH = os.path.join(CLI_DIR, "DiscordChatExporter.Cli")
 # Module Paths
 SRC_DIR = os.path.join(BASE_DIR, "src")
 ANALYSIS_DIR = os.path.join(SRC_DIR, "analysis")
+EXTRACTION_DIR = os.path.join(SRC_DIR, "extraction")
 WEB_DIR = os.path.join(SRC_DIR, "web")
 
-# Templates
+# Templates and Resources
 ANALYSIS_TEMPLATES_DIR = os.path.join(ANALYSIS_DIR, "templates")
 ANALYSIS_RESOURCES_DIR = os.path.join(ANALYSIS_DIR, "resources")
+EXTRACTION_RESOURCES_DIR = os.path.join(EXTRACTION_DIR, "resources")
 WEB_TEMPLATES_DIR = os.path.join(WEB_DIR, "templates")
 WEB_STATIC_DIR = os.path.join(WEB_DIR, "static")
 
+# Cache Files
+CHANNELS_CACHE_FILE = os.path.join(EXTRACTION_RESOURCES_DIR, "channels_cache.json")
+
 # Ensure core directories exist, LOGS_DIR
-for d in [INPUT_DIR, OUTPUT_DIR, OUTPUT_HTML_DIR, OUTPUT_PDF_DIR, OUTPUT_TXT_DIR]:
+for d in [INPUT_DIR, OUTPUT_DIR, OUTPUT_HTML_DIR, OUTPUT_PDF_DIR, OUTPUT_TXT_DIR, EXTRACTION_RESOURCES_DIR]:
     os.makedirs(d, exist_ok=True)

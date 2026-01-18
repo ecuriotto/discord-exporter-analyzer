@@ -53,15 +53,20 @@ def export_discord_html(channel_id, output_html, token_file='discord_token.txt',
     
     final_target_path = output_html_path
     
-    # If we are in incremental mode, or simply want to avoid issues, always write to temp first if not using a template pattern
-    # Template pattern (%n) makes it hard to predict output name for temp file.
-    # But usually output_html is like "Channel_ID.html" or "%n_%c.html".
+    # If we are in incremental mode, or simply want to avoid issues, always write to temp first.
+    # We use a temp prefix even for template patterns (%n). 
+    # Example: output_html="input/%n_%c.html" -> temp_output="input/temp_%n_%c.html"
+    # CLI will generate "input/temp_RealName_ID.html".
+    # We won't be able to simple rename it here because we don't know RealName, 
+    # but the calling script (main_extraction) uses glob to find the file, so it will pick up the temp file correctly.
     
     use_temp = False
-    if after_date and "%" not in output_html_path:
+    if after_date:
         use_temp = True
-        temp_name = f"temp_{os.path.basename(output_html_path)}"
-        output_html_path = os.path.join(input_dir, temp_name)
+        dir_name = os.path.dirname(output_html_path)
+        base_name = os.path.basename(output_html_path)
+        temp_name = f"temp_{base_name}"
+        output_html_path = os.path.join(dir_name, temp_name)
     
     cmd = [
         cli_path,

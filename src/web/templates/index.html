@@ -133,6 +133,15 @@
                             <option value="" disabled selected>Loading servers...</option>
                         </select>
 
+                        <div style="margin-top: 10px; margin-bottom: 10px; display: flex; align-items: center; gap: 8px;">
+                            <input type="checkbox" id="include-threads" style="display:none"> <!-- Hidden now effectively, replaced by refresh button -->
+                            
+                            <button type="button" id="refresh-cache-btn" class="btn btn-secondary" onclick="refreshChannelCache()" style="font-size: 0.8rem; padding: 8px 12px; min-height: auto;">
+                                <span>↻ Refresh Channel List (incl. Threads)</span>
+                            </button>
+                            <span id="cache-status" style="font-size: 0.8em; color: #b9bbbe; margin-left: 10px;"></span>
+                        </div>
+
                         <label for="channel-select" style="margin-top: 15px;">Select Channel</label>
                         <select id="channel-select" disabled required>
                             <option value="" disabled selected>Select a server first...</option>
@@ -378,24 +387,187 @@
             }
         }
 
+        function reloadChannels() {
+            const guildSelect = document.getElementById('guild-select');
+            if (guildSelect.value) {
+                loadChannels(guildSelect.value);
+            }
+        }
+
+        async function refreshChannelCache() {
+            const guildSelect = document.getElementById('guild-select');
+            const guildId = guildSelect.value;
+            if (!guildId) return;
+
+            const btn = document.getElementById('refresh-cache-btn');
+            const logBox = document.getElementById('extract-log');
+            
+            if(!confirm("Refreshing channels with threads can take several minutes for large servers. Continue?")) return;
+
+            btn.disabled = true;
+            btn.innerHTML = `<span class="spinner">↻</span> Updating...`;
+            
+            // Show log area for feedback
+            logBox.style.display = 'block';
+            logBox.innerHTML = `<span style="color: #00b0f4;">> Starting background cache update for ${guildId}...</span>`;
+
+            try {
+                const response = await fetch('/api/discord/refresh-cache', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ guild_id: guildId })
+                });
+
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    showToast("Cache update started...", "info");
+                    // Poll specific for cache job
+                    pollCacheJob(result.job_id, btn, logBox);
+                } else {
+                    showToast("Failed to start update", "error");
+                    btn.disabled = false;
+                    btn.innerHTML = `<span>↻ Refresh Channel List (incl. Threads)</span>`;
+                }
+            } catch (e) {
+                console.error(e);
+                showToast("Error starting update", "error");
+                btn.disabled = false;
+                btn.innerHTML = `<span>↻ Refresh Channel List (incl. Threads)</span>`;
+            }
+        }
+
+        async function pollCacheJob(jobId, btn, logBox) {
+            const interval = setInterval(async () => {
+                try {
+                    const res = await fetch(`/api/jobs/${jobId}`);
+                    const job = await res.json();
+                    
+                    if (job.status === 'not_found') {
+                        clearInterval(interval);
+                        btn.disabled = false;
+                        btn.innerHTML = `<span>↻ Refresh Channel List (incl. Threads)</span>`;
+                        return;
+                    }
+
+                    // Update logs
+                    if (job.log && job.log.length > 0) {
+                         const lastLog = job.log[job.log.length - 1];
+                         logBox.innerHTML = `<span style="color: #b9bbbe;">> ${lastLog}</span>`;
+                    }
+
+                    if (job.status === 'completed') {
+                        clearInterval(interval);
+                        showToast("Channels updated!", "success");
+                        logBox.innerHTML = `<span style="color: #3ba55c;">> Cache updated successfully. Reloading list...</span>`;
+                        btn.disabled = false;
+                        btn.innerHTML = `<span>↻ Refresh Channel List (incl. Threads)</span>`;
+                        
+                        // Reload channels from cache
+                        reloadChannels();
+                        
+                    } else if (job.status === 'failed') {
+                        clearInterval(interval);
+                        showToast("Update failed", "error");
+                        logBox.innerHTML = `<span style="color: #ed4245;">> Error: ${job.error}</span>`;
+                        btn.disabled = false;
+                        btn.innerHTML = `<span>↻ Refresh Channel List (incl. Threads)</span>`;
+                    }
+
+                } catch (e) {
+                    console.error("Polling error", e);
+                }
+            }, 1000);
+        }
+
         // Fetch Channels
         async function loadChannels(guildId) {
             const channelSelect = document.getElementById('channel-select');
+            
+            // Only enable refresh button if a guild is selected
+            const refreshBtn = document.getElementById('refresh-cache-btn');
+            if (guildId && guildId !== "0") {
+                refreshBtn.style.display = 'inline-flex';
+            } else {
+                refreshBtn.style.display = 'none';
+            }
+
             channelSelect.disabled = true;
             channelSelect.innerHTML = '<option>Loading channels...</option>';
             
             try {
-                const res = await fetch(`/api/discord/channels/${guildId}?t=` + Date.now());
+                // Just standard load now. It checks cache primarily.
+                let url = `/api/discord/channels/${guildId}?t=` + Date.now();
+                
+                const res = await fetch(url);
                 const json = await res.json();
                 
                 if (json.status === 'success') {
                     channelSelect.innerHTML = '<option value="" disabled selected>Select a channel...</option>';
+                    
+                    // Add visual indicator if data is cached or fresh
+                    const cacheStatus = document.getElementById('cache-status');
+                    if (json.cached) {
+                        cacheStatus.textContent = "Loaded from cache (Fast)";
+                        cacheStatus.style.color = "#3ba55c";
+                    } else {
+                        cacheStatus.textContent = "Loaded live (Basic)";
+                        cacheStatus.style.color = "#faa61a";
+                    }
+
+                    // Organize channels by Category
+                    const groups = {};
+                    
                     json.data.forEach(c => {
-                        const opt = document.createElement('option');
-                        opt.value = c.id;
-                        opt.textContent = c.name;
-                        channelSelect.appendChild(opt);
+                        let category = "General";
+                        let name = c.name;
+                        
+                        if (c.name.includes(" / ")) {
+                            const parts = c.name.split(" / ", 2);
+                            category = parts[0];
+                            name = c.name.substring(category.length + 3); // Keep the remainder
+                        } else if (c.name.startsWith("Thread")) {
+                            // Fallback if separator is different or missing but logic implies thread
+                            category = "Thread";
+                        }
+                        
+                        if (!groups[category]) groups[category] = [];
+                        groups[category].push({ id: c.id, name: name, rawName: c.name });
                     });
+                    
+                    // Sort Categories order: "Canali testuali" first, others, then "Active Threads", then "Archived Threads"
+                    // But here we rely on the string "Thread / ...".
+                    // Let's sort keys alphabetically but put "Canali testuali" at top.
+                    const sortedCategories = Object.keys(groups).sort((a, b) => {
+                       if (a === "Canali testuali") return -1;
+                       if (b === "Canali testuali") return 1;
+                       return a.localeCompare(b);
+                    });
+                    
+                    sortedCategories.forEach(cat => {
+                        const groupEl = document.createElement('optgroup');
+                        groupEl.label = cat;
+                        
+                        // Sort channels inside category
+                        groups[cat].sort((a,b) => a.name.localeCompare(b.name));
+                        
+                        groups[cat].forEach(c => {
+                            const opt = document.createElement('option');
+                            opt.value = c.id;
+                            opt.textContent = c.name;
+                            
+                            // Visual Hint for threads
+                            if(cat.includes("Thread")) {
+                                opt.style.color = "#faa61a"; // Yellowish for threads
+                            } else {
+                                opt.style.color = "#ffffff";
+                            }
+                            
+                            groupEl.appendChild(opt);
+                        });
+                        channelSelect.appendChild(groupEl);
+                    });
+
                     channelSelect.disabled = false;
                 } else {
                     channelSelect.innerHTML = '<option disabled>Error loading channels</option>';
