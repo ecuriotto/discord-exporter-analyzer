@@ -15,7 +15,22 @@ if project_root not in sys.path:
 
 from src.logger import setup_logger
 from src.config import INPUT_DIR, OUTPUT_TXT_DIR
+# logging is configured via setup_logger, but we want to ensure it emits to console for webapp visibility
+# setup_logger should handle it, but let's double check or add a stream handler if missing
+import logging
 logger = setup_logger("extraction")
+# Force add stream handler if not present (simple hack)
+if not any(isinstance(h, logging.StreamHandler) for h in logger.handlers):
+    logger.addHandler(logging.StreamHandler(sys.stdout))
+    
+# Ensure we also log to app.log located in logs/
+log_dir = os.path.join(project_root, "logs")
+os.makedirs(log_dir, exist_ok=True)
+app_log_path = os.path.join(log_dir, "app.log")
+file_handler = logging.FileHandler(app_log_path, mode='a')
+file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+logger.addHandler(file_handler)
+
 
 try:
     from src.extraction.export_discord_html import export_discord_html
@@ -31,7 +46,7 @@ except ImportError:
 def get_last_timestamp_from_txt(txt_file):
     """
     Legge l'ultimo timestamp utile dal file TXT esistente.
-    Format atteso: [DD/MM/YYYY HH:MM] in reverse order.
+    Format atteso: [DD/MM/YYYY HH:MM] o varianti.
     Returns datetime object or None.
     """
     if not os.path.exists(txt_file):
@@ -41,7 +56,7 @@ def get_last_timestamp_from_txt(txt_file):
         with open(txt_file, 'rb') as f:
             f.seek(0, 2)
             filesize = f.tell()
-            # Read last 20KB to be safe
+            # Read last 20KB to be safe (messages can be long)
             offset = min(20000, filesize)
             f.seek(-offset, 2)
             # Decode ignoring cleanups
@@ -49,11 +64,27 @@ def get_last_timestamp_from_txt(txt_file):
             
             # Iterate backwards
             for line in reversed(lines):
-                # Pattern: [DD/MM/YYYY HH:MM]
-                match = re.search(r'\[(\d{2}/\d{2}/\d{4} \d{2}:\d{2})\]', line)
+                text = line.strip()
+                # Pattern: [DD/MM/YYYY HH:MM] or [DD-MMM-YY HH:MM PM]
+                # We look for the starting bracket and timestamp combo
+                match = re.search(r'\[(.*?)\].*?:', text)
                 if match:
-                    dt_str = match.group(1)
-                    return datetime.datetime.strptime(dt_str, "%d/%m/%Y %H:%M")
+                    timestamp_str = match.group(1)
+                    
+                    # Try parsers
+                    formats = [
+                        "%d/%m/%Y %H:%M",
+                        "%d-%b-%y %I:%M %p",
+                        "%Y-%m-%d %H:%M",
+                        "%Y-%m-%d %H:%M:%S"
+                    ]
+                    
+                    for fmt in formats:
+                        try:
+                            return datetime.datetime.strptime(timestamp_str, fmt)
+                        except ValueError:
+                            continue
+                            
     except Exception as e:
         logger.warning(f"Failed to read last timestamp from {txt_file}: {e}")
         return None

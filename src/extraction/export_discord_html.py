@@ -46,6 +46,23 @@ def export_discord_html(channel_id, output_html, token_file='discord_token.txt',
     filename = os.path.basename(output_html)
     output_html_path = os.path.join(input_dir, filename)
     
+    # [FIX] If INCREMENTAL (after_date is set), we MUST use a temporary file to avoid the "Overwrite?" prompt.
+    # The prompt appears if the file exists. 
+    # Even if we want to overwrite, -o forces it usually? No, it asks.
+    # We should render to a temp file, then move/rename it.
+    
+    final_target_path = output_html_path
+    
+    # If we are in incremental mode, or simply want to avoid issues, always write to temp first if not using a template pattern
+    # Template pattern (%n) makes it hard to predict output name for temp file.
+    # But usually output_html is like "Channel_ID.html" or "%n_%c.html".
+    
+    use_temp = False
+    if after_date and "%" not in output_html_path:
+        use_temp = True
+        temp_name = f"temp_{os.path.basename(output_html_path)}"
+        output_html_path = os.path.join(input_dir, temp_name)
+    
     cmd = [
         cli_path,
         'export',
@@ -80,7 +97,17 @@ def export_discord_html(channel_id, output_html, token_file='discord_token.txt',
         process.wait()
         
         if process.returncode == 0:
-            print(f"[SUCCESS] Exported HTML to {output_html_path}")
+            if use_temp:
+                 # Move temp to final
+                 if os.path.exists(output_html_path):
+                     if os.path.exists(final_target_path):
+                         os.remove(final_target_path)
+                     os.rename(output_html_path, final_target_path)
+                     print(f"[SUCCESS] Exported HTML to {final_target_path} (via temp)")
+                 else:
+                     print(f"[WARN] Temp file {output_html_path} not found after success?")
+            else:
+                 print(f"[SUCCESS] Exported HTML to {output_html_path}")
             return True
         else:
             print(f"[ERROR] Export failed with return code {process.returncode}")
