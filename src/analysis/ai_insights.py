@@ -80,27 +80,6 @@ def load_openrouter_key():
     logger.warning("OPENROUTER_API_KEY not found in env or openRouter_token.txt.")
     return None
 
-def check_model_availability(client, model):
-    """
-    Performs a lightweight 'ping' to the model to check if it's available 
-    and not rate-limited, before sending the full payload.
-    """
-    try:
-        logger.info(f"Checking availability for model: {model}...")
-        client.chat.completions.create(
-            model=model,
-            messages=[{"role": "user", "content": "Hi"}],
-            max_tokens=1,
-            extra_headers={
-                 "HTTP-Referer": "http://localhost:3000", 
-                 "X-Title": "Discord Analysis Tool (Health Check)",
-            }
-        )
-        return True
-    except Exception as e:
-        logger.warning(f"Model {model} unavailable during health check: {e}")
-        return False
-
 def summarize_text(text_content, prompt_instructions, max_retries=2, model_type="free"):
     """
     Sends content to OpenRouter API.
@@ -127,15 +106,9 @@ def summarize_text(text_content, prompt_instructions, max_retries=2, model_type=
             logger.warning(f"Exceeded limit of {max_model_attempts} different models tried. Aborting AI analysis.")
             break
         
-        # 1. Health Check (Prevent token waste/delays on dead models)
-        # Skip health check for pay models or make it optional? 
-        # Usually pay models are reliable, but let's keep it for safety unless it costs money.
-        # Health check uses 1 token. For pay models, this costs negligible money.
-        if not check_model_availability(client, model):
-            logger.info(f"Skipping model {model} (Health Check Failed).")
-            continue
-            
-        logger.info(f"Model {model} is available. Proceeding with analysis ({model_type} mode)...")
+        # 1. Health Check Removed
+        # We proceed directly to analysis to avoid wasting tokens on pings.
+        logger.info(f"Attempting analysis with model: {model} ({model_type} mode)...")
         models_attempted += 1
         
         # 2. Real Analysis Attempt
