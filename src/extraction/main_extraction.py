@@ -3,6 +3,8 @@ import sys
 import re
 import os
 import argparse
+import datetime
+import glob
 
 # Setup Logger
 # We need to add project root to path to import src.logger if running as script
@@ -26,13 +28,46 @@ except ImportError:
          sys.path.append(os.path.dirname(__file__))
          from export_discord_html import export_discord_html
 
-def extract_discord_messages(html_file, output_file=None):
+def get_last_timestamp_from_txt(txt_file):
+    """
+    Legge l'ultimo timestamp utile dal file TXT esistente.
+    Format atteso: [DD/MM/YYYY HH:MM] in reverse order.
+    Returns datetime object or None.
+    """
+    if not os.path.exists(txt_file):
+        return None
+    
+    try:
+        with open(txt_file, 'rb') as f:
+            f.seek(0, 2)
+            filesize = f.tell()
+            # Read last 20KB to be safe
+            offset = min(20000, filesize)
+            f.seek(-offset, 2)
+            # Decode ignoring cleanups
+            lines = f.read().decode('utf-8', errors='ignore').splitlines()
+            
+            # Iterate backwards
+            for line in reversed(lines):
+                # Pattern: [DD/MM/YYYY HH:MM]
+                match = re.search(r'\[(\d{2}/\d{2}/\d{4} \d{2}:\d{2})\]', line)
+                if match:
+                    dt_str = match.group(1)
+                    return datetime.datetime.strptime(dt_str, "%d/%m/%Y %H:%M")
+    except Exception as e:
+        logger.warning(f"Failed to read last timestamp from {txt_file}: {e}")
+        return None
+    
+    return None
+
+def extract_discord_messages(html_file, output_file=None, append_mode=False):
     """
     Estrae i messaggi da un file HTML esportato da DiscordChatExporter
     
     Args:
         html_file: percorso del file HTML di input
         output_file: percorso del file di output (opzionale)
+        append_mode: se True, appende al file di output esistente
     
     Returns:
         stringa con il testo estratto
@@ -54,8 +89,12 @@ def extract_discord_messages(html_file, output_file=None):
     out_f = None
     extracted_buffer_legacy = [] # Fallback if no output_file
     
+    mode = 'a' if append_mode else 'w'
+    
     if output_file:
-        out_f = open(output_file, 'w', encoding='utf-8')
+        out_f = open(output_file, mode, encoding='utf-8')
+        if append_mode:
+            out_f.write(f"\n\n--- INCREMENTAL UPDATE: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ---\n\n")
     
     def write_message(text):
         if out_f:
@@ -64,9 +103,14 @@ def extract_discord_messages(html_file, output_file=None):
             extracted_buffer_legacy.append(text)
 
     # Estrai informazioni dal preamble (intestazione canale)
+    # If appending, maybe skip header? Or keep it as separator?
+    # Usually clean to keep context or maybe minimal separator.
+    # The user wants "The final txt file will contain all the content".
+    # Duplicate headers are annoying but acceptable.
+    # However, for pure storage, we might want to skip header if append_mode is True.
     preamble = soup.find('div', class_='preamble')
 
-    if preamble:
+    if preamble and not append_mode:
         entries = preamble.find_all('div', class_='preamble__entry')
         if entries:
             channel_info = " / ".join([entry.get_text(strip=True) for entry in entries])
@@ -180,21 +224,61 @@ if __name__ == "__main__":
 
     input_path = args.input_file
     
+    # Variables for incremental update
+    append_mode = False
+    existing_txt_file = None
+    
     # If export is requested
     if args.export:
         print(f"Exporting channel {args.export}...")
-        # Assume input_path is the target HTML location (or template)
-        # export_discord_html will force it into input/ dir
-        if not export_discord_html(args.export, input_path):
-            print("Export failed. Exiting.")
-            sys.exit(1)
+        
+        # Check for existing TXT data to enable incremental export
+        # We look for files ending with _{channel_id}.txt in output/txt/
+        if os.path.exists(OUTPUT_TXT_DIR):
+            txt_pattern = os.path.join(OUTPUT_TXT_DIR, f"*_{args.export}.txt")
+            found_txts = glob.glob(txt_pattern)
+            
+            if found_txts:
+                # Use the most recently modified one
+                existing_txt_file = max(found_txts, key=os.path.getmtime)
+                last_dt = get_last_timestamp_from_txt(existing_txt_file)
+                
+                if last_dt:
+                    # Add 1 second to avoid duplication if possible, or just exact time
+                    # DiscordChatExporter treats after as inclusive or strictly after? 
+                    # Usually 'after'. Let's add 1s to be safe.
+                    after_str = (last_dt + datetime.timedelta(seconds=1)).isoformat()
+                    print(f"[INFO] Found existing extracted data ({os.path.basename(existing_txt_file)}). \n       Last message: {last_dt}. \n       Running incremental export after {after_str}.")
+                    
+                    # Assume input_path is the target HTML location (or template)
+                    # export_discord_html will force it into input/ dir
+                    if not export_discord_html(args.export, input_path, after_date=after_str):
+                        print("Export failed. Exiting.")
+                        sys.exit(1)
+                    
+                    append_mode = True
+                else:
+                    # File exists but no timestamp found, full export
+                    if not export_discord_html(args.export, input_path):
+                         print("Export failed. Exiting.")
+                         sys.exit(1)
+            else:
+                # No existing file, full export
+                if not export_discord_html(args.export, input_path):
+                    print("Export failed. Exiting.")
+                    sys.exit(1)
+        else:
+             # No output dir, full export
+             if not export_discord_html(args.export, input_path):
+                 print("Export failed. Exiting.")
+                 sys.exit(1)
         
         # If we used a template (contains %), we need to find the actual file created
         if "%" in input_path or args.input_file == "%n_%c.html":
             # We look for files ending with _{channel_id}.html in input/
             # %c is replaced by channel ID.
-            import glob
-            
+            # import glob # Already imported at top-level now
+
             # The pattern to match the file we just created. 
             # Since we used "%n_%c.html", it ends with "_{id}.html"
             search_pattern = os.path.join(INPUT_DIR, f"*_{args.export}.html")
@@ -268,14 +352,19 @@ if __name__ == "__main__":
             
     # Convert HTML to TXT
     if not args.output:
-        # Generate default output name: input.html -> output/txt/input.txt
-        base = os.path.splitext(os.path.basename(input_path))[0]
-        
-        # Organize in subfolder
-        txt_out_dir = OUTPUT_TXT_DIR
-        os.makedirs(txt_out_dir, exist_ok=True)
-        
-        args.output = os.path.join(txt_out_dir, f"{base}.txt")
+        # If append mode, use the existing file as target
+        if append_mode and existing_txt_file:
+             args.output = existing_txt_file
+             print(f"[INFO] Appending new messages to existing archive: {args.output}")
+        else:
+            # Generate default output name: input.html -> output/txt/input.txt
+            base = os.path.splitext(os.path.basename(input_path))[0]
+            
+            # Organize in subfolder
+            txt_out_dir = OUTPUT_TXT_DIR
+            os.makedirs(txt_out_dir, exist_ok=True)
+            
+            args.output = os.path.join(txt_out_dir, f"{base}.txt")
         
     logger.info(f"Extracting messages from {input_path}...")
-    extract_discord_messages(input_path, args.output)
+    extract_discord_messages(input_path, args.output, append_mode=append_mode)

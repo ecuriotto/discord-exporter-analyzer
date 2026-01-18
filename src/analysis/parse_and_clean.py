@@ -44,6 +44,15 @@ def parse_and_clean_discord_txt(txt_path):
         if not line:
             continue
             
+        # Ignore separators and headers (especially for incremental updates)
+        if line.startswith("CANALE:") or line.startswith("=====") or line.startswith("--- INCREMENTAL UPDATE"):
+            # If we hit a structural divider, flush the buffer to ensure it doesn't get appended to
+            if buffer:
+                if not is_system_message(buffer['message']) and not is_bot_command(buffer['message']):
+                    rows.append(buffer)
+                buffer = None
+            continue
+            
         m_full = MESSAGE_REGEX_FULL.match(line)
         m_short = MESSAGE_REGEX_SHORT.match(line)
 

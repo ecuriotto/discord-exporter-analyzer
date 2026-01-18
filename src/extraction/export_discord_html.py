@@ -14,7 +14,7 @@ def get_discord_token(token_file='discord_token.txt'):
             
     return None
 
-def export_discord_html(channel_id, output_html, token_file='discord_token.txt', cli_path='DiscordChatExporterCli/DiscordChatExporter.Cli'):
+def export_discord_html(channel_id, output_html, token_file='discord_token.txt', cli_path='DiscordChatExporterCli/DiscordChatExporter.Cli', after_date=None):
     """
     Export Discord channel messages to HTML using DiscordChatExporter CLI.
     Args:
@@ -22,6 +22,7 @@ def export_discord_html(channel_id, output_html, token_file='discord_token.txt',
         output_html: Path to output HTML file
         token_file: Path to file containing Discord token
         cli_path: Path to DiscordChatExporter CLI executable
+        after_date: Optional ISO 8601 date string. If set, only messages after this date are exported.
     Returns:
         True if export succeeded, False otherwise
     """
@@ -53,6 +54,11 @@ def export_discord_html(channel_id, output_html, token_file='discord_token.txt',
         '-f', 'HtmlDark',
         '-o', output_html_path
     ]
+
+    if after_date:
+        print(f"[INFO] Incremental export: Fetching messages after {after_date}")
+        cmd.extend(['--after', after_date])
+
     try:
         print(f"[INFO] Starting Discord export for channel {channel_id}...")
         print(f"[INFO] Command: {' '.join(cmd)}")
