@@ -99,7 +99,13 @@ def summarize_text(text_content, prompt_instructions, max_retries=2, model_type=
     models_attempted = 0
     max_model_attempts = 5
     
-    models_list = PAY_MODELS if model_type == "pay" else FREE_MODELS
+    if model_type == "pay":
+        models_list = PAY_MODELS
+    elif model_type == "free":
+        models_list = FREE_MODELS
+    else:
+        # User specified a specific model ID (e.g. "openai/gpt-4o")
+        models_list = [model_type]
 
     for model in models_list:
         if models_attempted >= max_model_attempts:
@@ -152,13 +158,13 @@ def summarize_text(text_content, prompt_instructions, max_retries=2, model_type=
 
     return "Failed to get AI response from all available models."
 
-def load_prompt_template(template_name='value_investor_prompt.txt'):
+def load_prompt_template(template_name='company_chat_prompt.txt'):
     """
     Loads the system prompt from templates directory.
     
     Args:
         template_name: Name of the template file to load. 
-                      Default: 'value_investor_prompt.txt' (specialized for financial analysis)
+                      Default: 'company_chat_prompt.txt' (specialized for financial analysis)
                       Alternative: 'system_prompt.txt' (general Discord chat analysis)
     """
     try:
@@ -170,7 +176,7 @@ def load_prompt_template(template_name='value_investor_prompt.txt'):
         logger.warning(f"Could not load {template_name}: {e}. Trying fallback...")
         
         # Try the other template as fallback
-        fallback_name = 'system_prompt.txt' if template_name != 'system_prompt.txt' else 'value_investor_prompt.txt'
+        fallback_name = 'system_prompt.txt' if template_name != 'system_prompt.txt' else 'company_chat_prompt.txt'
         try:
             fallback_path = os.path.join(ANALYSIS_TEMPLATES_DIR, fallback_name)
             with open(fallback_path, 'r', encoding='utf-8') as f:
@@ -191,12 +197,14 @@ def load_prompt_template(template_name='value_investor_prompt.txt'):
             }}
             """
 
-def get_quarterly_insights(df, year=None, target_quarter=None, language="Italian", force_single_period=False, period_label_override=None, model_type="free"):
+def get_quarterly_insights(df, year=None, target_quarter=None, language="Italian", force_single_period=False, period_label_override=None, model_type="free", analysis_type="company"):
     """
     Groups messages by Quarter (Q1, Q2, Q3, Q4) and gets insights from OpenRouter/LLM.
     Returns a dict: { 'Q1': {'summary': [], 'sentiment': '', ...}, ... }
     
     If force_single_period is True, ignores quarters/years and processes entire DF as one block.
+    
+    analysis_type: "company" (Value Investor) or "general" (Generic Chat)
     """
     if 'timestamp' not in df.columns:
         return {}
@@ -217,8 +225,12 @@ def get_quarterly_insights(df, year=None, target_quarter=None, language="Italian
     if df_target.empty:
          return {}
 
-    # Load Prompt Template (Default specialized)
-    prompt_template = load_prompt_template()
+    # Load Prompt Template based on Analysis Type
+    template_name = 'company_chat_prompt.txt' # Default
+    if analysis_type == "general":
+        template_name = 'generic_chat_prompt.txt'
+        
+    prompt_template = load_prompt_template(template_name)
     
     insights = {}
     

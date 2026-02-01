@@ -172,6 +172,39 @@
                     
                 </div>
                 {% endif %}
+
+                <!-- General Chat Sections -->
+                {% if data.la_perla or data.la_simpatia %}
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    
+                     <!-- La Perla -->
+                    {% if data.la_perla and data.la_perla|length > 0 %}
+                    <div class="bg-gray-800/50 p-4 rounded-xl border border-gray-700 relative overflow-hidden group hover:border-yellow-500/50 transition-colors">
+                         <div class="absolute top-0 right-0 p-2 opacity-10 text-6xl group-hover:opacity-20 transition-opacity">💎</div>
+                        <p class="text-xs text-yellow-400 uppercase font-bold mb-3 tracking-wider">💎 LA PERLA</p>
+                        <ul class="space-y-4 text-gray-300 ml-4 border-l-2 border-yellow-700 pl-4 relative z-10">
+                            {% for item in data.la_perla %}
+                            <li class="pl-1 text-sm leading-relaxed">{{ item | md_bold | safe }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- La Simpatia -->
+                    {% if data.la_simpatia and data.la_simpatia|length > 0 %}
+                    <div class="bg-gray-800/50 p-4 rounded-xl border border-gray-700 relative overflow-hidden group hover:border-pink-500/50 transition-colors">
+                        <div class="absolute top-0 right-0 p-2 opacity-10 text-6xl group-hover:opacity-20 transition-opacity">😂</div>
+                        <p class="text-xs text-pink-400 uppercase font-bold mb-3 tracking-wider">😂 LA SIMPATIA</p>
+                        <ul class="space-y-4 text-gray-300 ml-4 border-l-2 border-pink-700 pl-4 relative z-10">
+                            {% for item in data.la_simpatia %}
+                            <li class="pl-1 text-sm leading-relaxed">{{ item | md_bold | safe }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+
+                </div>
+                {% endif %}
                 
                 <!-- Legacy/Fallback: Old Format Support (summary + quotes) -->
                 {% if data.summary and data.summary|length > 0 %}

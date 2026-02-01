@@ -65,6 +65,7 @@ buono
 c
 c'
 c'è
+certo
 ch'
 che
 chi
@@ -177,11 +178,13 @@ fareste
 faresti
 farete
 farò
+fatto
 fece
 fecero
 feci
 fine
 fino
+forse
 fosse
 fossero
 fossi
@@ -263,6 +266,7 @@ nostra
 nostre
 nostri
 nostro
+nn
 nove
 nuovi
 nuovo

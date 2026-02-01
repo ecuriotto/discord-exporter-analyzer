@@ -68,6 +68,9 @@ A toolset to export Discord chats, extract clean text for LLMs, and generate ric
 
 1. **Start the Server:**
    ```bash
+   # Activate virtual environment
+   source .venv/bin/activate
+
    # Run from the project root
    python -m uvicorn src.web.app:app --reload
    ```
@@ -110,6 +113,12 @@ python src/analysis/main_analysis.py --input output/txt/ChannelName.txt
 
 # Specific Year & Options
 python src/analysis/main_analysis.py --input output/txt/ChannelName.txt --year 2025 --quarter Q1 --lang English
+
+# Specific Month
+python src/analysis/main_analysis.py --input output/txt/ChannelName.txt --year 2025 --month 1
+
+# Last X Months (e.g., last 6 months from today)
+python src/analysis/main_analysis.py --input output/txt/ChannelName.txt --months 6
 ```
 
 ## Testing

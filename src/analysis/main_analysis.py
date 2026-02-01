@@ -153,16 +153,19 @@ def main():
     parser = argparse.ArgumentParser(description="Generate Discord Chat Report")
     parser.add_argument("--year", type=int, help="Specific year to analyze (default: previous year)")
     parser.add_argument("--quarter", type=str, help="Specific quarter to analyze (e.g., Q1)")
+    parser.add_argument("--month", type=int, help="Specific month to analyze (1-12)")
     parser.add_argument("--lang", default="Italian", help="Language for AI output (default: Italian)")
     parser.add_argument("--input", default=None, help="Specific input .txt file path")
     parser.add_argument("--months", type=int, help="Analyze the last X months from today (e.g. 6)")
     parser.add_argument("--ytd", action="store_true", help="Analyze Year-To-Date (Current Year)")
-    parser.add_argument("--model-mode", default="free", choices=["free", "pay"], help="Choose between free or pay models")
+    parser.add_argument("--model-mode", default="free", help="Choose between free, pay, or a specific OpenRouter model ID")
+    parser.add_argument("--type", default="company", choices=["company", "general"], help="Analysis type: 'company' (Financial) or 'general' (Chat)")
     args = parser.parse_args()
 
     # Determine filter mode & target parameters
     target_year = None
     target_quarter = None
+    target_month = None
     filter_mode = "year_quarter" # default
     report_suffix = ""
 
@@ -175,6 +178,12 @@ def main():
         target_year = datetime.now().year
         report_suffix = f"_YTD_{target_year}"
         logger.info(f"Analysis Mode: YTD ({target_year})")
+    elif args.month:
+        target_month = args.month
+        target_year = args.year if args.year else (datetime.now().year - 1)
+        filter_mode = "month_specific"
+        report_suffix = f"_{target_year}_{target_month:02d}"
+        logger.info(f"Analysis Mode: Specific Month ({target_year}-{target_month:02d})")
     else:
          # Default Year/Quarter
          target_year = args.year if args.year else (datetime.now().year - 1)
@@ -231,6 +240,10 @@ def main():
              
         elif filter_mode == "ytd":
              df = df[df['timestamp'].dt.year == target_year]
+
+        elif filter_mode == "month_specific":
+             df = df[df['timestamp'].dt.year == target_year]
+             df = df[df['timestamp'].dt.month == target_month]
              
         else:
             # Year / Quarter Mode
@@ -297,7 +310,8 @@ def main():
                     language=args.lang, 
                     force_single_period=True, 
                     period_label_override=p_label,
-                    model_type=args.model_mode
+                    model_type=args.model_mode,
+                    analysis_type=args.type
                 )
             elif filter_mode == "ytd":
                 summary_label = f"YTD {target_year}"
@@ -306,7 +320,23 @@ def main():
                     year=None, 
                     target_quarter=None, 
                     language=args.lang,
-                    model_type=args.model_mode
+                    model_type=args.model_mode,
+                    analysis_type=args.type
+                )
+            elif filter_mode == "month_specific":
+                import calendar
+                month_name = calendar.month_name[target_month]
+                p_label = f"{month_name} {target_year}"
+                summary_label = p_label
+                quarterly_insights = get_quarterly_insights(
+                    df, 
+                    year=None, 
+                    target_quarter=None, 
+                    language=args.lang,
+                    force_single_period=True,
+                    period_label_override=p_label,
+                    model_type=args.model_mode,
+                    analysis_type=args.type
                 )
             else:
                 summary_label = str(target_year)
@@ -316,7 +346,8 @@ def main():
                     year=None, 
                     target_quarter=target_quarter, 
                     language=args.lang,
-                    model_type=args.model_mode
+                    model_type=args.model_mode,
+                    analysis_type=args.type
                 )
 
             # Generate Executive Summary if we have any output
@@ -370,6 +401,10 @@ def main():
         report_title = f"Report Ultimi {args.months} Mesi"
     elif filter_mode == "ytd":
         report_title = f"Report YTD {target_year}"
+    elif filter_mode == "month_specific":
+        import calendar
+        month_name = calendar.month_name[target_month]
+        report_title = f"Report {month_name} {target_year}"
     else:
         # Standard Year/Quarter
         if target_quarter:

@@ -13,6 +13,7 @@ import tempfile
 import glob
 import re
 from datetime import datetime
+import requests
 
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
@@ -28,6 +29,7 @@ from src.config import (
     CHANNEL_NAMES_FILE as CACHE_FILE,
     CHANNELS_CACHE_FILE
 )
+from src.analysis.ai_insights import load_openrouter_key
 from src.logger import setup_logger
 
 logger = setup_logger("web_app")
@@ -39,6 +41,25 @@ JOBS = {}
 cli_executor = ThreadPoolExecutor(max_workers=3)
 
 app = FastAPI(title="Discord Analytics Dashboard")
+
+@app.get("/api/models")
+async def get_models():
+    """Fetch available models from OpenRouter."""
+    api_key = load_openrouter_key()
+    if not api_key:
+        return {"status": "error", "message": "OpenRouter API Key not found."}
+
+    try:
+        response = requests.get("https://openrouter.ai/api/v1/models")
+        if response.status_code == 200:
+            data = response.json().get("data", [])
+            # Sort by name
+            data.sort(key=lambda x: x.get("name", ""))
+            return {"status": "success", "data": data}
+        else:
+            return {"status": "error", "message": f"OpenRouter API Error: {response.status_code}"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 @app.get("/robots.txt", response_class=HTMLResponse)
 async def robots_txt():
@@ -419,10 +440,12 @@ class AnalysisRequest(BaseModel):
     file_path: str
     year: int | None = None
     quarter: str | None = None
+    month: int | None = None
     months: int | None = None
     ytd: bool = False
     language: str = "it"
     model_mode: str = "free"
+    analysis_type: str = "company"
 
 
 def clean_log(text):
@@ -511,18 +534,22 @@ async def trigger_extraction(request: ExtractionRequest, background_tasks: Backg
 
     return {"status": "success", "message": f"Extraction started for channel {channel_id}", "job_id": job_id}
 
-def run_analysis(job_id: str, file_path: str, language: str, year: int = None, quarter: str = None, months: int = None, ytd: bool = False, model_mode: str = "free"):
+def run_analysis(job_id: str, file_path: str, language: str, year: int = None, quarter: str = None, month: int = None, months: int = None, ytd: bool = False, model_mode: str = "free", analysis_type: str = "company"):
     """
     Runs the analysis script in a subprocess with real-time logging.
     """
     script_path = os.path.join(BASE_DIR, "src", "analysis", "main_analysis.py")
     
-    cmd = [sys.executable, "-u", script_path, "--input", file_path, "--lang", language, "--model-mode", model_mode]
+    cmd = [sys.executable, "-u", script_path, "--input", file_path, "--lang", language, "--model-mode", model_mode, "--type", analysis_type]
     
     if months:
          cmd.extend(["--months", str(months)])
     elif ytd:
          cmd.append("--ytd")
+    elif month:
+         cmd.extend(["--month", str(month)])
+         if year:
+            cmd.extend(["--year", str(year)])
     else:
          # Default Year/Quarter Mode
          if year:
@@ -625,13 +652,15 @@ async def trigger_analysis(request: AnalysisRequest, background_tasks: Backgroun
         request.language,
         request.year,
         request.quarter,
+        request.month,
         request.months,
         request.ytd,
-        request.model_mode
+        request.model_mode,
+        request.analysis_type
     )
 
     return {
-        "status": "success", 
+        "status": "success",  
         "message": f"Analysis started for {file_name}", 
         "job_id": job_id
     }

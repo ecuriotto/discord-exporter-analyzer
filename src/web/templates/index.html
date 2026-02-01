@@ -96,6 +96,30 @@
 
         @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 
+        /* Modal */
+        .modal {
+            display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%;
+            overflow: auto; background-color: rgba(0,0,0,0.6); backdrop-filter: blur(2px);
+        }
+        .modal-content {
+            background-color: #36393f; margin: 5% auto; padding: 20px; border: 1px solid #202225;
+            width: 80%; max-width: 900px; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+        }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .modal-close { color: #b9bbbe; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .modal-close:hover { color: #fff; }
+        
+        /* Models Table */
+        .models-table-container { max-height: 60vh; overflow-y: auto; overflow-x: auto; }
+        table.models-table { width: 100%; border-collapse: collapse; color: #dcddde; }
+        table.models-table th, table.models-table td { text-align: left; padding: 12px; border-bottom: 1px solid #2f3136; }
+        table.models-table th { background-color: #2f3136; position: sticky; top: 0; }
+        table.models-table tr:hover { background-color: #40444b; cursor: pointer; }
+        .search-box {
+            width: 100%; padding: 10px; border-radius: 4px; border: 1px solid #202225;
+            background: #40444b; color: white; font-size: 1em; margin-bottom: 15px;
+        }
+
         /* Error Box */
         .error-box {
             background: rgba(237, 66, 69, 0.1); border: 1px solid #ed4245; color: #ed4245;
@@ -214,6 +238,9 @@
                                     <input type="radio" name="time-mode" value="year" checked onchange="toggleTimeInputs()"> Specific Year
                                 </label>
                                 <label style="font-weight: normal; display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                                    <input type="radio" name="time-mode" value="month" onchange="toggleTimeInputs()"> Specific Month
+                                </label>
+                                <label style="font-weight: normal; display: flex; align-items: center; gap: 5px; cursor: pointer;">
                                     <input type="radio" name="time-mode" value="months" onchange="toggleTimeInputs()"> Last X Months
                                 </label>
                                 <label style="font-weight: normal; display: flex; align-items: center; gap: 5px; cursor: pointer;">
@@ -241,6 +268,33 @@
                                 </div>
                             </div>
                         </div>
+                        
+                        <!-- Mode: Specific Month -->
+                        <div id="mode-month" class="mode-input" style="display: none;">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                <div>
+                                    <label for="analysis-month-year">Year</label>
+                                    <input type="text" id="analysis-month-year" value="2026">
+                                </div>
+                                <div>
+                                    <label for="analysis-month-select">Month</label>
+                                    <select id="analysis-month-select">
+                                        <option value="1">January</option>
+                                        <option value="2">February</option>
+                                        <option value="3">March</option>
+                                        <option value="4">April</option>
+                                        <option value="5">May</option>
+                                        <option value="6">June</option>
+                                        <option value="7">July</option>
+                                        <option value="8">August</option>
+                                        <option value="9">September</option>
+                                        <option value="10">October</option>
+                                        <option value="11">November</option>
+                                        <option value="12">December</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
 
                         <!-- Mode: Last X Months -->
                         <div id="mode-months" class="mode-input" style="display: none;">
@@ -256,6 +310,21 @@
                             </p>
                         </div>
 
+                        <!-- Analysis Type Selection -->
+                        <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #2f3136;">
+                            <label style="display: block; margin-bottom: 8px;">Analysis Type (Prompt)</label>
+                            <div style="display: flex; gap: 20px;">
+                                <label style="font-weight: normal; display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                                    <input type="radio" name="analysis-type" value="company" checked> 
+                                    <span>Financial/Company</span>
+                                </label>
+                                <label style="font-weight: normal; display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                                    <input type="radio" name="analysis-type" value="general"> 
+                                    <span>General/Community</span>
+                                </label>
+                            </div>
+                        </div>
+
                         <label for="analysis-lang" style="margin-top: 15px;">Language</label>
                         <select id="analysis-lang">
                             <option value="it" selected>Italian</option>
@@ -263,11 +332,21 @@
                         </select>
 
                         <!-- PRO: Model Mode Selection -->
-                        <label for="analysis-model-mode" style="margin-top: 15px;">Model Efficiency Mode</label>
-                        <select id="analysis-model-mode" style="background: #2f3136; border: 1px solid #202225; color: white; padding: 10px; border-radius: 4px; width: 100%;">
-                            <option value="free" selected>Free (Rotation & Fallback)</option>
-                            <option value="pay">Pay (High Performance / DeepSeek / Claude)</option>
-                        </select>
+                        <div style="margin-top: 15px;">
+                            <label for="analysis-model-mode">Model Efficiency Mode</label>
+                            <div style="display: flex; gap: 10px;">
+                                <select id="analysis-model-mode" style="background: #2f3136; border: 1px solid #202225; color: white; padding: 10px; border-radius: 4px; flex-grow: 1;">
+                                    <option value="free" selected>Free (Rotation & Fallback)</option>
+                                    <option value="pay">Pay (High Performance / GPT-4o)</option>
+                                    <optgroup label="Custom" id="custom-model-optgroup">
+                                        <!-- Selected custom model will appear here -->
+                                    </optgroup>
+                                </select>
+                                <button type="button" class="btn btn-secondary" onclick="openModelModal()" style="padding: 0 15px; background: #4f545c;">
+                                    Browse Models
+                                </button>
+                            </div>
+                        </div>
 
                         <div style="margin-top: 20px;">
                             <button type="submit" id="analyze-btn" class="btn">
@@ -315,6 +394,51 @@
             </div>
         </div>
 
+    </div>
+
+    <!-- Models Modal -->
+    <div id="models-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Browse OpenRouter Models</h2>
+                <span class="modal-close" onclick="closeModelModal()">&times;</span>
+            </div>
+            
+            <div style="background: rgba(88, 101, 242, 0.1); border-left: 3px solid #5865F2; padding: 10px; margin-bottom: 15px; font-size: 0.9em; color: #dcddde;">
+                <strong>💡 Recommendations for Large Files:</strong>
+                <ul style="margin: 5px 0 0 20px; padding: 0;">
+                    <li><strong>Context Window (Ctx):</strong> Measures how much text the model can read at once. For large Discord logs, choose models with <strong>128k</strong> or higher (e.g., 200k, 1M).</li>
+                    <li><strong>Model Size (Params):</strong> Often indicated in the name (e.g., 70B, 8B). Higher usually means "smarter" reasoning but slower/costlier. 
+                        <ul>
+                            <li><strong>70B+:</strong> Best for deep analysis and complex summaries.</li>
+                            <li><strong>7B-12B:</strong> Faster, good for simple tasks, but might miss nuances.</li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+
+            <input type="text" id="model-search" class="search-box" placeholder="Search models (e.g. 'openai', 'free')... (min 3 chars)" oninput="filterModels()">
+            
+            <div class="models-table-container">
+                <table class="models-table" id="models-table">
+                    <thead>
+                        <tr>
+                            <th>Model</th>
+                            <th>ID</th>
+                            <th>Ctx</th>
+                            <th>In ($/1M)</th>
+                            <th>Out ($/1M)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="models-table-body">
+                        <!-- Rows populated via JS -->
+                    </tbody>
+                </table>
+            </div>
+            <div id="models-loading" style="text-align: center; padding: 20px;">
+                <span class="spinner">↻</span> Loading models...
+            </div>
+        </div>
     </div>
 
     <!-- Toaster Container -->
@@ -717,6 +841,7 @@
         function toggleTimeInputs() {
             const mode = document.querySelector('input[name="time-mode"]:checked').value;
             document.getElementById('mode-year').style.display = (mode === 'year') ? 'block' : 'none';
+            document.getElementById('mode-month').style.display = (mode === 'month') ? 'block' : 'none';
             document.getElementById('mode-months').style.display = (mode === 'months') ? 'block' : 'none';
             document.getElementById('mode-ytd').style.display = (mode === 'ytd') ? 'block' : 'none';
         }
@@ -730,6 +855,8 @@
             
             // Get Mode
             const mode = document.querySelector('input[name="time-mode"]:checked').value;
+            // Get Analysis Type
+            const analysisType = document.querySelector('input[name="analysis-type"]:checked').value;
             
             const btn = document.getElementById('analyze-btn');
             const errorBox = document.getElementById('analysis-error');
@@ -741,6 +868,7 @@
                 file_path: fileSelect.value,
                 language: langSelect.value,
                 model_mode: modelModeSelect ? modelModeSelect.value : "free",
+                analysis_type: analysisType,
                 ytd: false
             };
             
@@ -750,6 +878,15 @@
                 payload.year = parseInt(yearInput.value);
                 payload.quarter = quarterSelect.value || null;
                 if(!payload.year) {
+                    alert("Please enter a valid year.");
+                    return;
+                }
+            } else if (mode === 'month') {
+                const yearInput = document.getElementById('analysis-month-year');
+                const monthSelect = document.getElementById('analysis-month-select');
+                payload.year = parseInt(yearInput.value);
+                payload.month = parseInt(monthSelect.value);
+                if (!payload.year) {
                     alert("Please enter a valid year.");
                     return;
                 }
@@ -774,6 +911,7 @@
             logBox.style.display = 'block';
             let msg = `> Starting analysis`;
             if (mode === 'year') msg += ` for ${payload.year}`;
+            else if (mode === 'month') msg += ` for month ${payload.month}/${payload.year}`;
             else if (mode === 'months') msg += ` for last ${payload.months} months`;
             else if (mode === 'ytd') msg += ` (YTD)`;
             
@@ -831,6 +969,144 @@
                 console.error(err);
                 showToast("Network Error", "error");
             }
+        }
+
+        // --- Models Modal Logic ---
+        let allModels = [];
+
+        function openModelModal() {
+            document.getElementById('models-modal').style.display = 'block';
+            if (allModels.length === 0) {
+                fetchModels();
+            }
+        }
+
+        function closeModelModal() {
+            document.getElementById('models-modal').style.display = 'none';
+        }
+
+        // Close when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('models-modal');
+            if (event.target == modal) {
+                modal.style.display = "none";
+            }
+        }
+
+        async function fetchModels() {
+            const loading = document.getElementById('models-loading');
+            const tbody = document.getElementById('models-table-body');
+            
+            loading.style.display = 'block';
+            tbody.innerHTML = '';
+
+            try {
+                const res = await fetch('/api/models');
+                const json = await res.json();
+                
+                if (json.status === 'success') {
+                    // Filter for Text/Chat models suitable for summarization
+                    allModels = json.data.filter(m => {
+                        const id = m.id.toLowerCase();
+                        // Exclude obvious non-text models
+                        if (id.includes('embedding') || 
+                            id.includes('diffusion') || 
+                            id.includes('flux') || 
+                            id.includes('stable') || 
+                            id.includes('image') ||
+                            id.includes('audio') ||
+                            id.includes('tts') ||
+                            id.includes('whisper')) {
+                            return false;
+                        }
+                        return true;
+                    });
+                    renderModels(allModels);
+                } else {
+                    tbody.innerHTML = `<tr><td colspan="5" style="color:#ed4245">Error: ${json.message}</td></tr>`;
+                }
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="5" style="color:#ed4245">Error: ${e.message}</td></tr>`;
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+
+        function renderModels(models) {
+            const tbody = document.getElementById('models-table-body');
+            tbody.innerHTML = '';
+            
+            models.forEach(m => {
+                const tr = document.createElement('tr');
+                
+                // Pricing calculations
+                const promptPrice = m.pricing ? (parseFloat(m.pricing.prompt) * 1000000).toFixed(2) : "?";
+                const completionPrice = m.pricing ? (parseFloat(m.pricing.completion) * 1000000).toFixed(2) : "?";
+                
+                // Context Formatting
+                let context = m.context_length ? Math.round(m.context_length / 1000) + 'k' : '?';
+                if (m.context_length >= 1000000) context = (m.context_length / 1000000).toFixed(1) + 'M';
+                
+                // Highlight High Context
+                let contextStyle = "";
+                if (m.context_length >= 120000) contextStyle = "color: #3ba55c; font-weight: bold;"; // Green for 120k+
+
+                // Truncate description
+                let desc = m.description || "";
+                if (desc.length > 50) desc = desc.substring(0, 50) + "...";
+                if (!desc) desc = "<span style='color: #72767d; font-style: italic;'>No description</span>";
+                
+                tr.innerHTML = `
+                    <td>
+                        <div style="font-weight: bold; color:white;">${m.name}</div>
+                        <div style="font-size: 0.8em; color:#b9bbbe;">${desc}</div>
+                    </td>
+                    <td style="font-family: monospace; font-size: 0.9em; color:#b9bbbe;">${m.id}</td>
+                    <td style="${contextStyle}">${context}</td>
+                    <td>$${promptPrice}</td>
+                    <td>$${completionPrice}</td>
+                `;
+                
+                tr.onclick = () => selectModel(m);
+                tbody.appendChild(tr);
+            });
+        }
+
+        function filterModels() {
+            const query = document.getElementById('model-search').value.toLowerCase();
+            
+            // Search only after 3 characters
+            if (query.length < 3) {
+                renderModels(allModels);
+                return;
+            }
+
+            const filtered = allModels.filter(m => 
+                m.name.toLowerCase().includes(query) || 
+                m.id.toLowerCase().includes(query)
+            );
+            renderModels(filtered);
+        }
+
+        function selectModel(model) {
+            const select = document.getElementById('analysis-model-mode');
+            const group = document.getElementById('custom-model-optgroup');
+            
+            // Clear previous custom options
+            group.innerHTML = '';
+            
+            // Add new option
+            const opt = document.createElement('option');
+            opt.value = model.id;
+            opt.textContent = `${model.name} (${model.id})`;
+            opt.selected = true;
+            group.appendChild(opt);
+            
+            // Re-select (safeguard)
+            select.value = model.id;
+            
+            closeModelModal();
+            showToast(`Selected model: ${model.name}`);
         }
     </script>
     </main>
