@@ -11,7 +11,8 @@ Required Structure:
 Provide a concrete and specific synthesis of the events. Avoid generic fillers like "The community discussed many topics" or "There were lively dynamics". Go straight to the point.
 Describe exactly **WHAT** was discussed (e.g. "Debate on **Alibaba**'s regulation", "Geopolitical issues", "Critique of **Meta**'s new headset").
 Tone: Journalistic, concise, and dense.
-Formatting: You must **bold** specific entities like **Companies** (e.g. **META**, **PayPal**), **Countries** (**China**, **USA**), and **Key Topics** (**AI**, **Interest Rates**), in addition to **Usernames**.
+Formatting: You must **bold** specific entities like **Companies** (e.g. **$META**, **PayPal**), **Countries** (**China**, **USA**), and **Key Topics** (**AI**, **Interest Rates**), in addition to **Usernames**.
+CRITICAL: Use `<br>` tags to insert line breaks between paragraphs or after major points. Do not rely on `\n` for formatting.
 Do not exceed 400 words. At the end double check if the language used is {language}.
 
 💎 The Pearl (Le Perle di Saggezza):

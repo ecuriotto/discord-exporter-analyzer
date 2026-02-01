@@ -25,6 +25,7 @@ Attribution and Formatting:
 - Always cite members in bold (e.g., "According to **Davide**...", "**Claudio** observes that...").
 - Highlight key concepts, Tickers, and numeric data in bold (e.g., "**ROIC 15%**", "**$META**", "**Moat**").
 - Structure: If a paragraph is long, break it. Use bullet points (dash "-") within the narrative to list pros/cons or multiple data points, making the text airy and readable.
+- **Line Breaks**: Use `<br>` tags to distinguish paragraphs in the output text. Do not rely on newline characters.
 
 Technical Narrative: Use a discursive but dense style. Do not fear length if the content is high quality. Make reading fluid and engaging.
 
