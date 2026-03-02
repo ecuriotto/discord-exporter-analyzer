@@ -27,3 +27,4 @@ htmlcov/
 logs/
 *.log
 src/extraction/resources/channels_cache.json
+src/analysis/resources/failed_json_*.txt
