@@ -511,6 +511,9 @@ async def trigger_extraction(request: ExtractionRequest, background_tasks: Backg
     """
     channel_id = request.channel_id.strip() # Ensure valid format
     
+    # Log incoming extraction request
+    logger.info(f"Extraction request received for channel_id: {channel_id}")
+    
     # Security Check: Channel ID must be numeric
     if not channel_id.isdigit():
         logger.error(f"Invalid Channel ID received: '{channel_id}'")
@@ -538,6 +541,19 @@ def run_analysis(job_id: str, file_path: str, language: str, year: int = None, q
     """
     Runs the analysis script in a subprocess with real-time logging.
     """
+    # Log all parameters received
+    logger.info(f"run_analysis called with parameters:")
+    logger.info(f"  - job_id: {job_id}")
+    logger.info(f"  - file_path: {file_path}")
+    logger.info(f"  - language: {language}")
+    logger.info(f"  - year: {year}")
+    logger.info(f"  - quarter: {quarter}")
+    logger.info(f"  - month: {month}")
+    logger.info(f"  - months: {months}")
+    logger.info(f"  - ytd: {ytd}")
+    logger.info(f"  - model_mode: {model_mode}")
+    logger.info(f"  - analysis_type: {analysis_type}")
+    
     script_path = os.path.join(BASE_DIR, "src", "analysis", "main_analysis.py")
     
     cmd = [sys.executable, "-u", script_path, "--input", file_path, "--lang", language, "--model-mode", model_mode, "--type", analysis_type]
@@ -626,6 +642,18 @@ async def trigger_analysis(request: AnalysisRequest, background_tasks: Backgroun
     """
     Trigger the analysis script in the background.
     """
+    # Log all incoming parameters
+    logger.info(f"Analysis request received:")
+    logger.info(f"  - file_path: {request.file_path}")
+    logger.info(f"  - language: {request.language}")
+    logger.info(f"  - year: {request.year}")
+    logger.info(f"  - quarter: {request.quarter}")
+    logger.info(f"  - month: {request.month}")
+    logger.info(f"  - months: {request.months}")
+    logger.info(f"  - ytd: {request.ytd}")
+    logger.info(f"  - model_mode: {request.model_mode}")
+    logger.info(f"  - analysis_type: {request.analysis_type}")
+    
     # Security Check: Ensure file is in INPUT_DIR or OUTPUT_TXT_DIR
     if not is_safe_path(request.file_path, [INPUT_DIR, OUTPUT_DIR]):
         return {"status": "error", "message": "Invalid file path. Access denied."}

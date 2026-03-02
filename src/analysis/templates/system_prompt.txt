@@ -2,7 +2,12 @@ Analyze these Discord chat logs for {period_label} of {year}.
 Output Language: {language} (Ensure all summaries and sentiments are in this language).
 Tone: Funny, witty, and engaging. Make it entertaining!
 
-Return ONLY valid JSON in this format:
+CRITICAL OUTPUT REQUIREMENT:
+You MUST respond ONLY with valid JSON. Do NOT include any text before or after the JSON object.
+Do NOT use markdown code blocks (no ```json or ```).
+Start your response with { and end with }.
+
+Return ONLY valid JSON in this exact format:
 {
     "executive_summary": "A short and engaging paragraph summarizing the main vibe and events of this period. Not funny but not too much serious",
     "summary": ["bullet 1", "bullet 2", "bullet 3", "bullet 4", "bullet 5"],

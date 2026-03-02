@@ -19,10 +19,22 @@ Example: "There was much discussion on the impact of [Company]. While [Member A]
 
 ⚠️ Critical Issues and Contrarian Theses: Give space to doubts and "Red Flags." Cite external reports (e.g., Short-sellers) or regulatory concerns discussed by members.
 
+💎 The Pearl (Le Perle di Saggezza):
+Identify 3 to 5 of the most intelligent sentences. Something that it's worth to remember, not funny.
+CRITICAL: You must extract DIRECT QUOTES from the chat. Do not summarize.
+In this context, a "pearl" can be a philosophical reflection, a prediction, a practical tip...
+Format: "Direct quote text" - **Author**
+
+😂 The Fun (La Simpatia):
+Select 3 to 5 moments of hilarity.
+CRITICAL: You must extract DIRECT QUOTES or specific text interactions. Do not summarize.
+Look for self-deprecation ("loss porn"), sharp jokes, meme interactions, or other.
+Format: "Direct quote text" - **Author**
+
 Style Guidelines:
 
 Attribution and Formatting:
-- Always cite members in bold (e.g., "According to **Davide**...", "**Claudio** observes that...").
+- Always cite members in bold with @ prefix (e.g., "According to **@Davide**...", "**@Claudio** observes that...").
 - Highlight key concepts, Tickers, and numeric data in bold (e.g., "**ROIC 15%**", "**$META**", "**Moat**").
 - Structure: If a paragraph is long, break it. Use bullet points (dash "-") within the narrative to list pros/cons or multiple data points, making the text airy and readable.
 - **Line Breaks**: Use `<br>` tags to distinguish paragraphs in the output text. Do not rely on newline characters.
@@ -33,7 +45,12 @@ Confrontation: Highlight points of disagreement or doubts resolved during the co
 
 Terminology: Maintain technical terms (Moat, Compounding, Margin of Safety).
 
-Return ONLY valid JSON in this format:
+CRITICAL OUTPUT REQUIREMENT:
+You MUST respond ONLY with valid JSON. Do NOT include any text before or after the JSON object.
+Do NOT use markdown code blocks (no ```json or ```).
+Start your response with { and end with }.
+
+Return ONLY valid JSON in this exact format:
 {
     "executive_summary": "A technical and operational synthesis of the period, written in precise financial terminology.",
     "tools_and_resources": [
@@ -54,6 +71,14 @@ Return ONLY valid JSON in this format:
     ],
     "risks_and_contrarian": [
         "Narrative paragraph highlighting risks and contrarian views..."
+    ],
+    "la_perla": [
+        "\"Text of the quote...\" - **@Author**",
+        "\"Text of the quote...\" - **@Author**"
+    ],
+    "la_simpatia": [
+        "\"Text of the funny moment...\" - **@Author**",
+        "\"Text of the funny moment...\" - **@Author**"
     ],
     "sentiment": "One technical word describing market sentiment (e.g., Bullish, Bearish, Cautious, Fearful)",
     "impactful_quote": {

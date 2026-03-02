@@ -1,6 +1,7 @@
 import os
 import time
 import json
+import re
 import pandas as pd
 from openai import OpenAI
 
@@ -317,27 +318,117 @@ def get_quarterly_insights(df, year=None, target_quarter=None, language="Italian
         time.sleep(5) # Modest buffer
         
         # Enhanced JSON Cleaning
-        # 1. Strip Markdown
+        # 1. Strip Markdown code blocks
         clean_json = response.replace("```json", "").replace("```", "").strip()
         
-        # 2. Extract JSON object using regex (find first { and last })
-        import re
+        # 2. Fix common AI JSON errors
+        # Replace semicolons with commas in JSON key-value separators
+        # Pattern: "...text"; should be "...text",
+        clean_json = re.sub(r'"\s*;\s*\n', '",\n', clean_json)
+        clean_json = re.sub(r'"\s*;\s*$', '",', clean_json, flags=re.MULTILINE)
+        
+        # 3. Extract JSON object using regex (find first { and last })
+        import ast
         json_match = re.search(r'(\{.*\})', clean_json, re.DOTALL)
         if json_match:
             clean_json = json_match.group(1)
+        else:
+            # If no JSON found at all, log the first part of response and skip
+            logger.error(f"   -> No JSON object found in response. Response preview: {response[:300]}...")
+            insights[quarter_label] = {
+                "summary": [], 
+                "sentiment": "Unknown",
+                "executive_summary": "",
+                "la_perla": [],
+                "la_simpatia": [],
+                "funniest_quotes": [],
+                "impactful_quote": {"text": "", "author": ""},
+                "contributors": sorted(quarter_data['user'].unique().tolist()) if not quarter_data.empty else []
+            }
+            continue
         
         try:
-            data = json.loads(clean_json)
+            try:
+                data = json.loads(clean_json)
+            except json.JSONDecodeError as e_json:
+                # Log the actual error details
+                logger.error(f"JSON Parse Error: {str(e_json)}")
+                logger.error(f"JSON content (first 500 chars): {clean_json[:500]}")
+                logger.error(f"JSON content (last 200 chars): {clean_json[-200:]}")
+                
+                # Fallback: Try ast.literal_eval for Python-style dicts (single quotes, etc.)
+                # This often fixes "JSON Parse Failed" when LLM returns Python dict syntax
+                try:
+                    data = ast.literal_eval(clean_json)
+                    logger.info("Successfully parsed using ast.literal_eval")
+                except Exception as e_ast:
+                    # If this also fails, log the error content and raise the original error
+                    # to trigger the outer except block
+                    logger.error(f"AST Parse also failed: {str(e_ast)}")
+                    logger.error(f"Content Start: {clean_json[:200]}...")
+                    raise e_json
+            
+            # --- POST-PROCESSING: Statistical Extraction of Contributors ---
+            # Extract users specifically cited by the AI (looking for **@User** pattern)
+            try:
+                # Search for **@Username** patterns in all string values within the data structure
+                # We'll recursively traverse the data to find all mentions
+                def extract_mentions_from_value(value):
+                    """Extract @mentions from a string value"""
+                    if isinstance(value, str):
+                        # Find all **@Username** patterns
+                        return re.findall(r'\*\*@([^\*]+)\*\*', value)
+                    return []
+                
+                def traverse_and_extract(obj):
+                    """Recursively traverse the data structure to find all mentions"""
+                    mentions = []
+                    if isinstance(obj, dict):
+                        for value in obj.values():
+                            mentions.extend(traverse_and_extract(value))
+                    elif isinstance(obj, list):
+                        for item in obj:
+                            mentions.extend(traverse_and_extract(item))
+                    elif isinstance(obj, str):
+                        mentions.extend(extract_mentions_from_value(obj))
+                    return mentions
+                
+                # Extract all cited users from the data structure
+                cited_users = traverse_and_extract(data)
+                
+                # Deduplicate, sort, and add @ prefix
+                contributors_list = sorted(list(set([f"@{u.strip()}" for u in cited_users])))
+                
+                data['contributors'] = contributors_list
+            except Exception as e_stats:
+                logger.warning(f"Failed to extract cited contributors list: {e_stats}")
+                data['contributors'] = []
+
             insights[quarter_label] = data
             logger.info(f"   -> Success! Analyzed {quarter_label}.")
         except json.JSONDecodeError:
             logger.warning(f"   -> JSON Parse Failed for {quarter_label}. Raw response length: {len(response)}")
-            # Fallback: Don't put "Analysis failed" in summary if we want to hide it
+            
+            # Save the failed JSON to a file for debugging
+            try:
+                debug_file = os.path.join(ANALYSIS_RESOURCES_DIR, f"failed_json_{quarter_label.replace(' ', '_')}.txt")
+                with open(debug_file, 'w', encoding='utf-8') as f:
+                    f.write(f"=== ORIGINAL RESPONSE ===\n{response}\n\n")
+                    f.write(f"=== CLEANED JSON ===\n{clean_json}")
+                logger.info(f"   -> Failed JSON saved to: {debug_file}")
+            except Exception as e_debug:
+                logger.error(f"   -> Could not save debug file: {e_debug}")
+            
+            # Fallback: Provide fields compatible with both templates
             insights[quarter_label] = {
-                "summary": [], # Empty summary helps hiding the section
+                "summary": [],
                 "sentiment": "Unknown",
+                "executive_summary": "",
+                "la_perla": [],
+                "la_simpatia": [],
                 "funniest_quotes": [],
-                "impactful_quote": {"text": "", "author": ""}
+                "impactful_quote": {"text": "", "author": ""},
+                "contributors": sorted(quarter_data['user'].unique().tolist()) if not quarter_data.empty else []
             }
             
     return insights
@@ -349,6 +440,9 @@ def generate_yearly_summary(insights, year, language="Italian", model_type="free
     """
     if not insights:
         return None
+    
+    # Log language parameter
+    logger.info(f"Generating yearly summary in language: {language}")
 
     logger.info(f"Generating Yearly Executive Summary from {len(insights)} quarters...")
     
@@ -366,7 +460,10 @@ def generate_yearly_summary(insights, year, language="Italian", model_type="free
     prompt = f"""
     You are an expert analyst. Read these quarterly summaries of a Discord community's year.
     Write a brief, engaging "Yearly Executive Summary" (max 150 words) that captures the overall vibe, evolution, and main themes of the year.
-    Output directly in {language}. No JSON, just the text paragraph.
+    
+    CRITICAL: The output language is {language}. You MUST write the ENTIRE summary ONLY in {language}. Do NOT use English or any other language.
+    
+    Output directly as a text paragraph. No JSON, no code blocks, just the summary text in {language}.
     """
     
     return summarize_text(meta_text, prompt, model_type=model_type)
